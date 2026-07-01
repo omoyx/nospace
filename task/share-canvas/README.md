@@ -16,6 +16,15 @@ Build a minimal modern website for invite-gated upload and download across norma
 - `npm run lint` passed.
 - `npm run build` passed.
 - `python3 -m py_compile space/app.py` passed.
+- UI simplification pass:
+  - Removed decorative ghost cards and board summary footer.
+  - Removed file-type label from card headers.
+  - Moved filename and date into one small gray metadata row with ellipsis.
+  - Changed cards to large rounded corners.
+  - Changed text files to preview text content directly.
+  - Captured desktop/mobile screenshots:
+    - `/tmp/nospace-minimal-desktop.png`
+    - `/tmp/nospace-minimal-mobile.png`
 - Backend local API passed:
   - `POST /api/session` accepts upload and download invites.
   - `POST /api/assets` accepts `upload-demo`.

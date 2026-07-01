@@ -13,13 +13,13 @@
   --surface: rgba(250, 251, 249, 0.88);
   --ink-soft: #68716c;
   --line: rgba(20, 26, 23, 0.1);
-  --shadow: 0 18px 55px rgba(50, 56, 54, 0.13);
-  --sharp-shadow: 0 12px 30px rgba(25, 28, 26, 0.12);
+  --shadow: 0 18px 48px rgba(50, 56, 54, 0.1);
+  --sharp-shadow: 0 10px 26px rgba(25, 28, 26, 0.1);
   --acid: #c7ff15;
   --mint: #00e8b5;
   --cyan: #21bde5;
   --paper: #f8f8f5;
-  --radius: 8px;
+  --radius: 24px;
 }
 
 * {
@@ -197,7 +197,7 @@ p {
   padding: clamp(18px, 4vw, 34px);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.54);
-  border-radius: 10px;
+  border-radius: 28px;
   background:
     radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.76), transparent 32%),
     radial-gradient(circle at 78% 8%, rgba(0, 232, 181, 0.15), transparent 24%),
@@ -263,43 +263,6 @@ p {
   min-height: 32px;
 }
 
-.ambient-stack {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.ghost-card {
-  position: absolute;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 28px 70px rgba(72, 78, 75, 0.11);
-}
-
-.ghost-card-a {
-  top: 105px;
-  left: 4%;
-  width: 190px;
-  height: 130px;
-  transform: rotate(-2deg);
-}
-
-.ghost-card-b {
-  right: 7%;
-  bottom: 12%;
-  width: 210px;
-  height: 150px;
-  transform: rotate(2deg);
-}
-
-.ghost-card-c {
-  left: 38%;
-  bottom: 7%;
-  width: 140px;
-  height: 88px;
-  transform: rotate(-1deg);
-}
-
 .masonry {
   position: relative;
   z-index: 2;
@@ -324,7 +287,7 @@ p {
 .asset-card {
   position: relative;
   overflow: hidden;
-  padding: 12px;
+  padding: 14px;
 }
 
 .asset-card:nth-child(5n + 2) {
@@ -358,23 +321,32 @@ p {
 .asset-meta,
 .asset-footer,
 .asset-footer > div,
-.card-actions,
-.kind-badge {
+.card-actions {
   display: flex;
   align-items: center;
 }
 
 .asset-meta {
   justify-content: space-between;
-  gap: 10px;
-  color: #6a746e;
+  gap: 12px;
+  min-width: 0;
+  color: #78817b;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
-.kind-badge {
-  gap: 6px;
-  color: #19201b;
+.asset-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-meta time {
+  flex: 0 0 auto;
+  color: #8a928d;
+  white-space: nowrap;
 }
 
 .asset-preview {
@@ -383,7 +355,7 @@ p {
   margin: 12px 0;
   place-items: center;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(17, 20, 18, 0.04)),
     #f4f5f1;
@@ -402,35 +374,34 @@ p {
   object-fit: cover;
 }
 
-.file-symbol {
-  display: grid;
-  width: 72px;
-  height: 72px;
-  place-items: center;
-  border-radius: 28px;
-  background: var(--acid);
-  box-shadow: 0 12px 24px rgba(112, 140, 15, 0.18);
-}
-
-.asset-body h3 {
-  overflow-wrap: anywhere;
-  color: #101411;
-  font-size: clamp(17px, 2.1vw, 24px);
-  font-weight: 650;
-  line-height: 1.02;
-}
-
-.asset-body p {
-  margin-top: 8px;
+.asset-note,
+.text-preview {
+  margin: 12px 0 0;
   color: #3f4943;
   font-size: 13px;
   line-height: 1.45;
 }
 
+.text-preview {
+  display: -webkit-box;
+  max-height: 12.8em;
+  overflow: hidden;
+  padding: 3px 2px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 9;
+  font-family:
+    "SFMono-Regular",
+    "Menlo",
+    "PingFang SC",
+    monospace;
+}
+
 .asset-footer {
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .asset-footer > div:first-child {
@@ -495,7 +466,7 @@ p {
   place-items: center;
   padding: 18px;
   border: 1px dashed rgba(19, 26, 22, 0.2);
-  border-radius: 7px;
+  border-radius: 20px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(0, 232, 181, 0.12)),
     #effaf7;
@@ -543,7 +514,7 @@ p {
   padding: 11px;
   resize: vertical;
   border: 1px solid rgba(19, 26, 22, 0.08);
-  border-radius: 7px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.66);
 }
 
@@ -612,18 +583,6 @@ p {
 .tile-error {
   margin-top: 8px;
   font-size: 12px;
-}
-
-.board-footer {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-  color: #6a746e;
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .spin {

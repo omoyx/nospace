@@ -1,10 +1,8 @@
 import { ChangeEvent, DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Archive,
   ArrowDownToLine,
   Copy,
   FileText,
-  Image,
   Loader2,
   LockKeyhole,
   Plus,
@@ -114,29 +112,6 @@ function assetKind(asset: Asset): AssetKind {
   return "file";
 }
 
-function kindLabel(kind: AssetKind): string {
-  const labels: Record<AssetKind, string> = {
-    image: "Image",
-    text: "Text",
-    archive: "Archive",
-    pdf: "PDF",
-    file: "File",
-  };
-  return labels[kind];
-}
-
-function KindIcon({ kind }: { kind: AssetKind }) {
-  const icons = {
-    image: Image,
-    text: FileText,
-    archive: Archive,
-    pdf: FileText,
-    file: FileText,
-  };
-  const Icon = icons[kind];
-  return <Icon aria-hidden="true" size={18} strokeWidth={1.9} />;
-}
-
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
   const units = ["KB", "MB", "GB"];
@@ -209,11 +184,6 @@ export function App() {
         .some((value) => value!.toLowerCase().includes(needle)),
     );
   }, [assets, query, session]);
-
-  const sourceNames = useMemo(
-    () => Array.from(new Set(visibleAssets.map((asset) => asset.sourceName))).slice(0, 4),
-    [visibleAssets],
-  );
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -345,12 +315,6 @@ export function App() {
           </div>
         </div>
 
-        <div className="ambient-stack" aria-hidden="true">
-          <div className="ghost-card ghost-card-a" />
-          <div className="ghost-card ghost-card-b" />
-          <div className="ghost-card ghost-card-c" />
-        </div>
-
         <div className="masonry">
           {canUpload && (
             <article className="upload-tile">
@@ -406,10 +370,6 @@ export function App() {
 
         {error && <div className="notice error">{error}</div>}
 
-        <footer className="board-footer">
-          <span>{visibleAssets.length} items</span>
-          <span>{sourceNames.length ? `from ${sourceNames.join(", ")}` : "quiet canvas"}</span>
-        </footer>
       </section>
     </main>
   );
@@ -444,33 +404,26 @@ function AssetCard({
   const kind = assetKind(asset);
   const downloadUrl = isPreview || !asset.downloadUrl ? "#" : assetDownloadUrl(asset, invite);
   const isImage = kind === "image" && asset.url;
+  const isText = kind === "text";
   const previewUrl = isImage && !isPreview ? assetFileUrl(asset, invite) : asset.url;
   const toneClass = `asset-card tone-${index % 5}`;
 
   return (
     <article className={toneClass}>
       <div className="asset-meta">
-        <span className="kind-badge">
-          <KindIcon kind={kind} />
-          {kindLabel(kind)}
+        <span className="asset-name" title={asset.originalName}>
+          {asset.originalName}
         </span>
-        <span>{formatTime(asset.uploadedAt)}</span>
+        <time dateTime={asset.uploadedAt}>{formatTime(asset.uploadedAt)}</time>
       </div>
 
-      <div className={isImage ? "asset-preview image-preview" : "asset-preview file-preview"}>
-        {isImage ? (
+      {isImage && (
+        <div className="asset-preview image-preview">
           <img src={previewUrl} alt={asset.originalName} loading="lazy" />
-        ) : (
-          <div className="file-symbol">
-            <KindIcon kind={kind} />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="asset-body">
-        <h3>{asset.originalName}</h3>
-        {asset.note && <p>{asset.note}</p>}
-      </div>
+      {isText ? <TextPreview asset={asset} invite={invite} isPreview={isPreview} /> : asset.note && <p className="asset-note">{asset.note}</p>}
 
       <div className="asset-footer">
         <div>
@@ -497,4 +450,33 @@ function AssetCard({
       </div>
     </article>
   );
+}
+
+function TextPreview({ asset, invite, isPreview }: { asset: Asset; invite: string; isPreview: boolean }) {
+  const [content, setContent] = useState(asset.note || "");
+
+  useEffect(() => {
+    let ignored = false;
+    if (isPreview || !asset.url) {
+      setContent(asset.note || "");
+      return () => {
+        ignored = true;
+      };
+    }
+
+    fetch(assetFileUrl(asset, invite))
+      .then((response) => (response.ok ? response.text() : ""))
+      .then((text) => {
+        if (!ignored) setContent((text || asset.note || "").slice(0, 1600));
+      })
+      .catch(() => {
+        if (!ignored) setContent(asset.note || "");
+      });
+
+    return () => {
+      ignored = true;
+    };
+  }, [asset, invite, isPreview]);
+
+  return <pre className="text-preview">{content || "空文本"}</pre>;
 }
