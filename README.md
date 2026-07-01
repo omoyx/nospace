@@ -2,13 +2,13 @@
 
 NoSpace is a tiny invite-gated sharing canvas for moving files and text between a normal network and a restricted intranet.
 
-The frontend is a static Vite app. The storage backend is a Hugging Face Space running FastAPI. Invite codes decide whether a visitor can upload or only list and download.
+The frontend is a static Vite app. Production on Sites uses a tiny Worker API plus object storage; the `space/` folder remains a Hugging Face Space backend option. Invite codes decide whether a visitor can upload or only list and download.
 
 ## Why this shape
 
-- Static frontend: easy to publish on GitHub Pages and simple to cache.
-- Hugging Face Space backend: one small API surface for invite checks, file upload, metadata, and downloads.
-- Storage model: files plus `index.json`, no database or account system.
+- Static frontend: simple to cache and cheap to host.
+- Sites Worker backend for the first online version: one small API surface for invite checks, file upload, metadata, and downloads.
+- Storage model: files plus `index.json` in object storage, no database or account system.
 
 ## Local development
 
@@ -47,6 +47,12 @@ Open `http://127.0.0.1:5173`.
 
 ## Deploy
 
-Use GitHub Pages for the static frontend by publishing `dist/`.
+For Sites:
 
-Use Hugging Face Spaces for the backend by copying `space/` into a Docker Space. See [docs/deployment.md](docs/deployment.md).
+```bash
+npm run build:sites
+```
+
+The production frontend calls same-origin `/api/*` by default. Set the `INVITES` and `MAX_UPLOAD_MB` runtime variables in the host.
+
+The Hugging Face Space backend is still available by copying `space/` into a Docker Space. See [docs/deployment.md](docs/deployment.md).

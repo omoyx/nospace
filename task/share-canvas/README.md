@@ -9,12 +9,17 @@ Build a minimal modern website for invite-gated upload and download across norma
 - Static React frontend with a canvas-like masonry feed.
 - Invite roles: `upload` can list, download, upload; `download` can list and download only.
 - Hugging Face Space FastAPI backend for file storage.
+- Sites Worker backend for the first hosted version, using object storage and the same invite role model.
 - Deployment notes for static host plus Space backend.
 
 ## Verification
 
 - `npm run lint` passed.
 - `npm run build` passed.
+- `npm run build:sites` passed and produced:
+  - `dist/server/index.js`
+  - `dist/client/index.html`
+  - `dist/.openai/hosting.json`
 - `python3 -m py_compile space/app.py` passed.
 - UI simplification pass:
   - Removed decorative ghost cards and board summary footer.
@@ -31,6 +36,10 @@ Build a minimal modern website for invite-gated upload and download across norma
   - `GET /api/assets` works with `read-demo`.
   - `GET /files/{id}/download?invite=read-demo` returns uploaded content.
   - `POST /api/assets` rejects `read-demo` with 403.
+- Sites deployment preparation:
+  - Created Sites project metadata in `.openai/hosting.json`.
+  - Added same-origin Worker API for production upload/download.
+  - Configured production `INVITES` and `MAX_UPLOAD_MB` through Sites runtime environment.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`

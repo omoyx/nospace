@@ -1,12 +1,29 @@
 # NoSpace deployment
 
-## Recommended shape
+## First online version
 
-- Frontend: GitHub Pages, because it is a static Vite build and does not need serverless functions.
-- Storage backend: Hugging Face Space with the Docker SDK.
-- Data: Space persistent storage mounted at `/data`, used by `space/app.py`.
+- Host: Sites.
+- Runtime API: same-origin Worker endpoints under `/api/*` and `/files/*`.
+- Data: object storage via the `FILES` binding, with uploaded bytes plus `__nospace_index.json`.
 
 This keeps the project simple: no database, no user accounts, no server-side render path.
+
+Set production runtime variables:
+
+```text
+INVITES=upload-code:upload:Anzi,read-code:download:Office
+MAX_UPLOAD_MB=80
+```
+
+Build the deployable artifact:
+
+```bash
+npm run build:sites
+```
+
+## Hugging Face Space option
+
+The `space/` folder is still a Docker Space backend if you prefer keeping storage on Hugging Face.
 
 ## Network note
 

@@ -3,7 +3,7 @@ import type { Asset, Session } from "./types";
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
 
 export const apiBaseUrl =
-  configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl : "http://127.0.0.1:7860";
+  configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl : import.meta.env.DEV ? "http://127.0.0.1:7860" : "";
 
 type ApiErrorBody = {
   detail?: string;
