@@ -40,6 +40,13 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Created Sites project metadata in `.openai/hosting.json`.
   - Added same-origin Worker API for production upload/download.
   - Configured production `INVITES` and `MAX_UPLOAD_MB` through Sites runtime environment.
+- Sites production deployment:
+  - Deployed version 1 to `https://nospace-share-canvas.workspace-667865.chatgpt-team.site`.
+  - Verified production `POST /api/session` for upload and download invites.
+  - Verified production upload through `POST /api/assets`.
+  - Verified production list and download with the read-only invite.
+  - Verified production read-only upload rejection returns 403.
+  - Public access could not be enabled because this workspace has Sites internet publishing disabled.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`
@@ -47,3 +54,4 @@ Build a minimal modern website for invite-gated upload and download across norma
 ## Mistakes
 
 - See `mistake/pip-cache-json-truncation.md`.
+- See `mistake/sites-public-publish-disabled.md`.
