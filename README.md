@@ -47,6 +47,18 @@ Open `http://127.0.0.1:5173`.
 
 ## Deploy
 
+Current public frontend:
+
+```text
+https://omoyx.github.io/nospace/
+```
+
+Current backend:
+
+```text
+https://mannycooper-nospace-storage.hf.space
+```
+
 For GitHub Pages:
 
 ```bash

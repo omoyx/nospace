@@ -41,9 +41,16 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified production list and download with read-only invite.
   - Verified production read-only upload rejection returns 403.
 - GitHub Pages frontend preparation:
+  - Created and pushed `https://github.com/omoyx/nospace`.
   - Added GitHub Actions Pages workflow.
   - Built with `GITHUB_PAGES=true` and `VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space`.
   - Removed Sites-only metadata and worker build path from the official release path.
+  - Enabled GitHub Pages workflow deployment.
+  - Verified public frontend at `https://omoyx.github.io/nospace/`.
+  - Verified deployed HTML loads `/nospace/assets/...`.
+  - Verified built frontend references `mannycooper-nospace-storage.hf.space`.
+  - Verified CORS preflight from `https://omoyx.github.io` for session and upload endpoints.
+  - Captured public frontend screenshot at `/tmp/nospace-github-pages-public.png`.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`

@@ -6,6 +6,13 @@
 - Backend/storage: Hugging Face Docker Space.
 - Data: files under `/data/nospace/files` plus `/data/nospace/index.json`.
 
+Live URLs:
+
+```text
+Frontend: https://omoyx.github.io/nospace/
+Backend:  https://mannycooper-nospace-storage.hf.space
+```
+
 This keeps the project simple: no database, no user accounts, no server-side render path.
 
 ## Hugging Face Space
@@ -33,6 +40,8 @@ VITE_DEFAULT_INVITE=
 ```
 
 Then publish `dist/` through GitHub Pages.
+
+The current GitHub Actions workflow publishes on pushes to `main`.
 
 ## Network note
 
