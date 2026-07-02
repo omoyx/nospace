@@ -9,29 +9,6 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["scripts/**/*.mjs"],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: globals.node,
-      sourceType: "module",
-    },
-  },
-  {
-    files: ["src/sites-worker.mjs"],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: {
-        crypto: "readonly",
-        File: "readonly",
-        Headers: "readonly",
-        Request: "readonly",
-        Response: "readonly",
-        URL: "readonly",
-      },
-      sourceType: "module",
-    },
-  },
-  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2020,

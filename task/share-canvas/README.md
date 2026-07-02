@@ -9,17 +9,13 @@ Build a minimal modern website for invite-gated upload and download across norma
 - Static React frontend with a canvas-like masonry feed.
 - Invite roles: `upload` can list, download, upload; `download` can list and download only.
 - Hugging Face Space FastAPI backend for file storage.
-- Sites Worker backend for the first hosted version, using object storage and the same invite role model.
-- Deployment notes for static host plus Space backend.
+- Hugging Face Space backend for the first public hosted version.
+- Deployment notes for GitHub Pages plus Space backend.
 
 ## Verification
 
 - `npm run lint` passed.
 - `npm run build` passed.
-- `npm run build:sites` passed and produced:
-  - `dist/server/index.js`
-  - `dist/client/index.html`
-  - `dist/.openai/hosting.json`
 - `python3 -m py_compile space/app.py` passed.
 - UI simplification pass:
   - Removed decorative ghost cards and board summary footer.
@@ -36,17 +32,18 @@ Build a minimal modern website for invite-gated upload and download across norma
   - `GET /api/assets` works with `read-demo`.
   - `GET /files/{id}/download?invite=read-demo` returns uploaded content.
   - `POST /api/assets` rejects `read-demo` with 403.
-- Sites deployment preparation:
-  - Created Sites project metadata in `.openai/hosting.json`.
-  - Added same-origin Worker API for production upload/download.
-  - Configured production `INVITES` and `MAX_UPLOAD_MB` through Sites runtime environment.
-- Sites production deployment:
-  - Deployed version 1 to `https://nospace-share-canvas.workspace-667865.chatgpt-team.site`.
-  - Verified production `POST /api/session` for upload and download invites.
-  - Verified production upload through `POST /api/assets`.
-  - Verified production list and download with the read-only invite.
+- Hugging Face Space production backend:
+  - Created `mannycooper/nospace-storage`.
+  - Configured production `INVITES`, `ALLOWED_ORIGINS`, `APP_BASE_URL`, and `MAX_UPLOAD_MB`.
+  - Uploaded Docker Space backend.
+  - Verified Space health at `https://mannycooper-nospace-storage.hf.space/`.
+  - Verified production upload with upload invite.
+  - Verified production list and download with read-only invite.
   - Verified production read-only upload rejection returns 403.
-  - Public access could not be enabled because this workspace has Sites internet publishing disabled.
+- GitHub Pages frontend preparation:
+  - Added GitHub Actions Pages workflow.
+  - Built with `GITHUB_PAGES=true` and `VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space`.
+  - Removed Sites-only metadata and worker build path from the official release path.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`
