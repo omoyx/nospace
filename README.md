@@ -2,13 +2,13 @@
 
 NoSpace is a tiny invite-gated sharing canvas for moving files and text between a normal network and a restricted intranet.
 
-The frontend is a static Vite app deployed on GitHub Pages. The backend is a Hugging Face Docker Space. Invite codes decide whether a visitor can upload or only list and download.
+The frontend is a static Vite app deployed on GitHub Pages. The backend is a Hugging Face Docker Space, and durable files live in a private Hugging Face Dataset repo. Invite codes decide whether a visitor can upload or only list and download.
 
 ## Why this shape
 
 - Static frontend: simple to cache and cheap to host.
 - Hugging Face Space backend: one small API surface for invite checks, file upload, metadata, and downloads.
-- Storage model: files plus `index.json`, no database or account system.
+- Hugging Face Dataset storage: files plus `index.json`, no Space persistent disk, database, or account system.
 
 ## Local development
 
@@ -31,7 +31,8 @@ Run the Space backend:
 cd space
 INVITES='upload-demo:upload:IP,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
-NOSPACE_DATA_DIR='./storage' \
+DATASET_REPO_ID='mannycooper/nospace-data' \
+HF_TOKEN='<token with dataset write access>' \
 ../.venv/bin/uvicorn app:app --host 127.0.0.1 --port 7860
 ```
 

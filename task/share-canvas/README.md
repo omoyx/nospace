@@ -8,7 +8,8 @@ Build a minimal modern website for invite-gated upload and download across norma
 
 - Static React frontend with a canvas-like masonry feed.
 - Invite roles: `upload` can list, download, upload; `download` can list and download only.
-- Hugging Face Space FastAPI backend for file storage.
+- Hugging Face Space FastAPI backend for invite-gated file APIs.
+- Private Hugging Face Dataset repo for durable file storage.
 - Hugging Face Space backend for the first public hosted version.
 - Deployment notes for GitHub Pages plus Space backend.
 
@@ -40,6 +41,18 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified production upload with upload invite.
   - Verified production list and download with read-only invite.
   - Verified production read-only upload rejection returns 403.
+- Hugging Face Dataset durable storage:
+  - Created private Dataset repo `mannycooper/nospace-data`.
+  - Migrated existing Space-stored assets into Dataset paths under `files/`.
+  - Seeded Dataset `index.json`.
+  - Configured Space `DATASET_REPO_ID=mannycooper/nospace-data`.
+  - Configured Space `HF_TOKEN` as a secret for private Dataset read/write.
+  - Redeployed Space backend to use Dataset storage instead of `/data`.
+  - Verified health returns `"storage":"huggingface-dataset"`.
+  - Verified list returns migrated Dataset-backed assets.
+  - Verified new upload writes to Dataset and appears in list.
+  - Verified read-only download works from Dataset-backed file.
+  - Verified read-only upload rejection still returns 403.
 - GitHub Pages frontend preparation:
   - Created and pushed `https://github.com/omoyx/nospace`.
   - Added GitHub Actions Pages workflow.
@@ -79,3 +92,4 @@ Build a minimal modern website for invite-gated upload and download across norma
 
 - See `mistake/pip-cache-json-truncation.md`.
 - See `mistake/sites-public-publish-disabled.md`.
+- See `mistake/hf-space-ephemeral-storage.md`.

@@ -3,14 +3,16 @@
 ## First online version
 
 - Frontend: GitHub Pages.
-- Backend/storage: Hugging Face Docker Space.
-- Data: files under `/data/nospace/files` plus `/data/nospace/index.json`.
+- Backend/API: Hugging Face Docker Space.
+- Storage: private Hugging Face Dataset.
+- Data: files under `files/` plus `index.json` in the Dataset repo.
 
 Live URLs:
 
 ```text
 Frontend: https://omoyx.github.io/nospace/
 Backend:  https://mannycooper-nospace-storage.hf.space
+Dataset:  mannycooper/nospace-data
 ```
 
 This keeps the project simple: no database, no user accounts, no server-side render path.
@@ -25,10 +27,17 @@ Set Space variables:
 INVITES=upload-code:upload:IP,read-code:download:Office
 ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
+DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=80
 ```
 
-Use paid persistent storage if uploads must survive Space restarts. The app stores files under `/data/nospace/files` and metadata in `/data/nospace/index.json`.
+Set Space secrets:
+
+```text
+HF_TOKEN=<token with write access to the private Dataset repo>
+```
+
+The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
 
 ## GitHub Pages
 
@@ -64,7 +73,8 @@ Terminal 1:
 cd space
 INVITES='upload-demo:upload:IP,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
-NOSPACE_DATA_DIR='./storage' \
+DATASET_REPO_ID='mannycooper/nospace-data' \
+HF_TOKEN='<token with dataset write access>' \
 uvicorn app:app --host 127.0.0.1 --port 7860 --reload
 ```
 

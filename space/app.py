@@ -4,18 +4,21 @@ import mimetypes
 import os
 import secrets
 import time
+from io import BytesIO
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
 from pydantic import BaseModel
 
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
-DATA_DIR = Path(os.getenv("NOSPACE_DATA_DIR", "/data/nospace"))
-FILES_DIR = DATA_DIR / "files"
-INDEX_PATH = DATA_DIR / "index.json"
+DATASET_REPO_ID = os.getenv("DATASET_REPO_ID", "").strip()
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+INDEX_PATH = "index.json"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "80"))
 
 
@@ -48,27 +51,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+hf_api = HfApi(token=HF_TOKEN)
+
 
 class InviteBody(BaseModel):
     invite: str
 
 
-def ensure_storage() -> None:
-    FILES_DIR.mkdir(parents=True, exist_ok=True)
-    if not INDEX_PATH.exists():
-        INDEX_PATH.write_text("[]", encoding="utf-8")
+def ensure_dataset() -> None:
+    if not DATASET_REPO_ID:
+        raise HTTPException(status_code=500, detail="DATASET_REPO_ID 未配置")
+    try:
+        hf_api.repo_info(repo_id=DATASET_REPO_ID, repo_type="dataset")
+    except RepositoryNotFoundError as error:
+        raise HTTPException(status_code=500, detail="Dataset 仓库不可用") from error
 
 
 def load_index() -> list[dict]:
-    ensure_storage()
-    return json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+    ensure_dataset()
+    try:
+        path = hf_hub_download(
+            repo_id=DATASET_REPO_ID,
+            filename=INDEX_PATH,
+            repo_type="dataset",
+            token=HF_TOKEN,
+        )
+    except EntryNotFoundError:
+        return []
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise HTTPException(status_code=500, detail="Dataset index.json 无法解析") from error
 
 
 def save_index(items: list[dict]) -> None:
-    ensure_storage()
-    temporary_path = INDEX_PATH.with_suffix(".tmp")
-    temporary_path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary_path.replace(INDEX_PATH)
+    ensure_dataset()
+    payload = json.dumps(items, ensure_ascii=False, indent=2).encode("utf-8")
+    hf_api.upload_file(
+        repo_id=DATASET_REPO_ID,
+        repo_type="dataset",
+        path_in_repo=INDEX_PATH,
+        path_or_fileobj=BytesIO(payload),
+        commit_message="Update NoSpace index",
+    )
 
 
 def session_for(invite: str | None) -> dict[str, str]:
@@ -85,9 +110,17 @@ def public_item(item: dict) -> dict:
     }
 
 
+def file_path(item: dict) -> str:
+    return item.get("path") or f"files/{item['filename']}"
+
+
 @app.get("/")
 def health() -> dict[str, str]:
-    return {"ok": "true", "service": "nospace-storage"}
+    return {
+        "ok": "true",
+        "service": "nospace-storage",
+        "storage": "huggingface-dataset" if DATASET_REPO_ID else "unconfigured",
+    }
 
 
 @app.post("/api/session")
@@ -118,19 +151,26 @@ async def create_asset(
     if size > MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"文件超过 {MAX_UPLOAD_MB} MB")
 
-    ensure_storage()
     original_name = Path(file.filename or "upload.bin").name
     suffix = Path(original_name).suffix
     digest = hashlib.sha256(content + secrets.token_bytes(8)).hexdigest()[:18]
     item_id = f"{int(time.time())}-{digest}"
     stored_name = f"{item_id}{suffix}"
-    stored_path = FILES_DIR / stored_name
-    stored_path.write_bytes(content)
+    path_in_repo = f"files/{stored_name}"
 
     mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    hf_api.upload_file(
+        repo_id=DATASET_REPO_ID,
+        repo_type="dataset",
+        path_in_repo=path_in_repo,
+        path_or_fileobj=BytesIO(content),
+        commit_message=f"Upload {original_name}",
+    )
+
     item = {
         "id": item_id,
         "filename": stored_name,
+        "path": path_in_repo,
         "originalName": original_name,
         "mimeType": mime_type,
         "size": size,
@@ -149,10 +189,16 @@ def file_item(item_id: str, invite: str | None) -> tuple[dict, Path]:
     session_for(invite)
     for item in load_index():
         if item["id"] == item_id:
-            path = FILES_DIR / item["filename"]
-            if not path.exists():
+            try:
+                path = hf_hub_download(
+                    repo_id=DATASET_REPO_ID,
+                    filename=file_path(item),
+                    repo_type="dataset",
+                    token=HF_TOKEN,
+                )
+            except EntryNotFoundError as error:
                 raise HTTPException(status_code=404, detail="文件不存在")
-            return item, path
+            return item, Path(path)
     raise HTTPException(status_code=404, detail="文件不存在")
 
 
