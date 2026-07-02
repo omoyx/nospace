@@ -17,6 +17,12 @@ import { apiBaseUrl, assetDownloadUrl, assetFileUrl, listAssets, uploadAsset, ve
 import type { Asset, AssetKind, Session } from "./types";
 
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
+const inviteStorageKey = "nospace:invite";
+
+function savedInvite(): string {
+  if (typeof window === "undefined") return defaultInvite;
+  return window.localStorage.getItem(inviteStorageKey) || defaultInvite;
+}
 
 const sampleAssets: Asset[] = [
   {
@@ -165,7 +171,7 @@ function useAssetFeed(invite: string, hasSession: boolean) {
 }
 
 export function App() {
-  const [invite, setInvite] = useState(defaultInvite);
+  const [invite, setInvite] = useState(savedInvite);
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -177,6 +183,39 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const { assets, setAssets, loading, error, refresh } = useAssetFeed(invite, Boolean(session));
+
+  const signIn = useCallback(async (nextInvite: string, silent = false) => {
+    const trimmedInvite = nextInvite.trim();
+    if (!trimmedInvite) {
+      setAuthError("需要邀请码");
+      return;
+    }
+
+    setAuthLoading(true);
+    if (!silent) setAuthError("");
+    try {
+      const nextSession = await verifyInvite(trimmedInvite);
+      setSession(nextSession);
+      setInvite(trimmedInvite);
+      window.localStorage.setItem(inviteStorageKey, trimmedInvite);
+      setAuthError("");
+    } catch (error) {
+      setSession(null);
+      window.localStorage.removeItem(inviteStorageKey);
+      if (!silent) {
+        setAuthError(error instanceof Error ? error.message : "邀请码不可用");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const storedInvite = savedInvite();
+    if (storedInvite) {
+      void signIn(storedInvite, true);
+    }
+  }, [signIn]);
 
   const visibleAssets = useMemo(() => {
     const feed = session ? assets : sampleAssets;
@@ -191,21 +230,7 @@ export function App() {
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!invite.trim()) {
-      setAuthError("需要邀请码");
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const nextSession = await verifyInvite(invite.trim());
-      setSession(nextSession);
-      setInvite(invite.trim());
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "邀请码不可用");
-    } finally {
-      setAuthLoading(false);
-    }
+    await signIn(invite);
   };
 
   const handleUploadFiles = async (files: FileList | File[]) => {

@@ -52,7 +52,7 @@ button {
 }
 
 .page-shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1760px, calc(100% - 32px));
   margin: 0 auto;
   padding: 22px 0 42px;
 }
@@ -266,7 +266,7 @@ p {
 .masonry {
   position: relative;
   z-index: 2;
-  column-count: 4;
+  column-count: 5;
   column-gap: 18px;
 }
 
@@ -609,6 +609,31 @@ p {
 @media (max-width: 1020px) {
   .masonry {
     column-count: 3;
+  }
+}
+
+@media (min-width: 1680px) {
+  .page-shell {
+    width: min(1920px, calc(100% - 56px));
+  }
+
+  .masonry {
+    column-count: 6;
+    column-gap: 20px;
+  }
+
+  .canvas-board {
+    padding: 34px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .page-shell {
+    width: min(1180px, calc(100% - 32px));
+  }
+
+  .masonry {
+    column-count: 4;
   }
 }
 

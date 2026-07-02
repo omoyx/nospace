@@ -60,6 +60,17 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Updated production Hugging Face Space `INVITES` secret so new uploads use `IP`.
   - Added frontend compatibility so existing stored `Anzi` metadata displays as `IP`.
   - Verified `POST /api/session` returns `{"role":"upload","name":"IP"}` for the upload invite.
+- Widescreen and persisted invite session:
+  - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
+  - Increased masonry columns to 5 by default and 6 on very wide screens.
+  - Stored the successful invite in `localStorage` under `nospace:invite`.
+  - Revalidates the saved invite on page load so refresh keeps the login state.
+  - Invalid saved invites are removed from local storage.
+  - Captured wide and mobile screenshots:
+    - `/tmp/nospace-wide.png`
+    - `/tmp/nospace-mobile-persist.png`
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`
