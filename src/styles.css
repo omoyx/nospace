@@ -195,7 +195,7 @@ p {
   min-height: calc(100vh - 128px);
   margin-top: 18px;
   padding: clamp(18px, 4vw, 34px);
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(255, 255, 255, 0.54);
   border-radius: 28px;
   background:
@@ -266,16 +266,18 @@ p {
 .masonry {
   position: relative;
   z-index: 2;
-  column-count: 5;
-  column-gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tile-min, 245px)), 1fr));
+  gap: 18px;
+  align-items: start;
 }
 
 .asset-card,
 .upload-tile,
 .intro-tile {
-  display: inline-block;
+  display: block;
   width: 100%;
-  margin: 0 0 18px;
+  margin: 0;
   break-inside: avoid;
   border: 1px solid rgba(18, 24, 21, 0.08);
   border-radius: var(--radius);
@@ -288,18 +290,6 @@ p {
   position: relative;
   overflow: hidden;
   padding: 14px;
-}
-
-.asset-card:nth-child(5n + 2) {
-  transform: translateY(34px);
-}
-
-.asset-card:nth-child(7n + 1) {
-  transform: translateY(12px);
-}
-
-.asset-card:nth-child(6n + 3) {
-  transform: translateY(-8px);
 }
 
 .tone-1 {
@@ -608,7 +598,7 @@ p {
 
 @media (max-width: 1020px) {
   .masonry {
-    column-count: 3;
+    --tile-min: 220px;
   }
 }
 
@@ -618,8 +608,8 @@ p {
   }
 
   .masonry {
-    column-count: 6;
-    column-gap: 20px;
+    --tile-min: 250px;
+    gap: 20px;
   }
 
   .canvas-board {
@@ -633,7 +623,7 @@ p {
   }
 
   .masonry {
-    column-count: 4;
+    --tile-min: 230px;
   }
 }
 
@@ -664,18 +654,14 @@ p {
   }
 
   .masonry {
-    column-count: 2;
-    column-gap: 12px;
-  }
-
-  .asset-card:nth-child(n) {
-    transform: none;
+    --tile-min: 210px;
+    gap: 12px;
   }
 }
 
 @media (max-width: 520px) {
   .masonry {
-    column-count: 1;
+    --tile-min: 100%;
   }
 
   .canvas-board {

@@ -82,6 +82,16 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified the same uploaded file downloaded successfully with both `upload-e0a4f080` and `read-4f8a5790`.
   - Verified read-only upload still returns 403.
   - Removed the temporary verification upload from the private Dataset after testing.
+- Zoom-safe canvas layout:
+  - Replaced the canvas card container from CSS columns with a responsive CSS grid using `auto-fill` and bounded tile widths.
+  - Removed visual-only card transforms so cards keep real layout positions at wide widths and browser zoom levels.
+  - Changed the canvas board overflow to visible so content is not clipped when layout grows.
+  - Verified with Playwright screenshots:
+    - `/tmp/nospace-wide-grid-10s.png`
+    - `/tmp/nospace-narrow-grid.png`
+    - `/tmp/nospace-zoomlike-grid.png`
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
