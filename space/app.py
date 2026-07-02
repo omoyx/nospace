@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import json
 import mimetypes
 import os
@@ -8,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from huggingface_hub import HfApi, hf_hub_download
@@ -56,6 +57,64 @@ hf_api = HfApi(token=HF_TOKEN)
 
 class InviteBody(BaseModel):
     invite: str
+
+
+def clean_ip(value: str) -> str:
+    value = value.strip().strip('"')
+    if not value:
+        return ""
+    if value.startswith("[") and "]" in value:
+        return value[1 : value.index("]")]
+    if value.count(":") == 1 and "." in value:
+        return value.rsplit(":", 1)[0]
+    return value
+
+
+def parsed_ip(value: str) -> str:
+    ip = clean_ip(value)
+    try:
+        return str(ipaddress.ip_address(ip))
+    except ValueError:
+        return ""
+
+
+def forwarded_for_ips(value: str) -> list[str]:
+    ips: list[str] = []
+    for entry in value.split(","):
+        for segment in entry.split(";"):
+            key, _, raw_candidate = segment.strip().partition("=")
+            if key.lower() == "for":
+                ip = parsed_ip(raw_candidate)
+                if ip:
+                    ips.append(ip)
+    return ips
+
+
+def client_ip(request: Request) -> str:
+    for header in ("cf-connecting-ip", "x-real-ip", "x-forwarded-for"):
+        raw_value = request.headers.get(header)
+        if not raw_value:
+            continue
+        for candidate in raw_value.split(","):
+            ip = parsed_ip(candidate)
+            if ip:
+                return ip
+
+    forwarded = request.headers.get("forwarded")
+    if forwarded:
+        ips = forwarded_for_ips(forwarded)
+        if ips:
+            return ips[0]
+
+    if request.client:
+        return parsed_ip(request.client.host) or request.client.host
+    return "unknown"
+
+
+def public_session(session: dict[str, str], request: Request) -> dict[str, str]:
+    if session["role"] == "upload":
+        return {"role": session["role"], "name": client_ip(request)}
+    return session
 
 
 def ensure_dataset() -> None:
@@ -124,8 +183,8 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/session")
-def create_session(body: InviteBody) -> dict[str, str]:
-    return session_for(body.invite)
+def create_session(body: InviteBody, request: Request) -> dict[str, str]:
+    return public_session(session_for(body.invite), request)
 
 
 @app.get("/api/assets")
@@ -138,6 +197,7 @@ def list_assets(x_invite_code: Annotated[str | None, Header()] = None) -> list[d
 
 @app.post("/api/assets")
 async def create_asset(
+    request: Request,
     file: Annotated[UploadFile, File()],
     note: Annotated[str, Form()] = "",
     x_invite_code: Annotated[str | None, Header()] = None,
@@ -175,7 +235,7 @@ async def create_asset(
         "mimeType": mime_type,
         "size": size,
         "uploadedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "sourceName": session["name"],
+        "sourceName": client_ip(request),
         "note": note[:400],
     }
 

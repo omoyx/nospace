@@ -9,6 +9,7 @@ The frontend is a static Vite app deployed on GitHub Pages. The backend is a Hug
 - Static frontend: simple to cache and cheap to host.
 - Hugging Face Space backend: one small API surface for invite checks, file upload, metadata, and downloads.
 - Hugging Face Dataset storage: files plus `index.json`, no Space persistent disk, database, or account system.
+- Upload source: recorded from the requester IP that the Space can see through proxy/client headers.
 
 ## Local development
 
@@ -29,7 +30,7 @@ Run the Space backend:
 
 ```bash
 cd space
-INVITES='upload-demo:upload:IP,read-demo:download:Office' \
+INVITES='upload-demo:upload:Uploader,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 DATASET_REPO_ID='mannycooper/nospace-data' \
 HF_TOKEN='<token with dataset write access>' \

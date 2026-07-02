@@ -44,7 +44,7 @@ const sampleAssets: Asset[] = [
     mimeType: "image/png",
     size: 814000,
     uploadedAt: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
-    sourceName: "IP",
+    sourceName: "203.0.113.24",
     note: "视觉参考图",
     width: 1200,
     height: 760,
@@ -141,7 +141,7 @@ function formatTime(iso: string): string {
 }
 
 function displaySourceName(sourceName: string): string {
-  return sourceName === "Anzi" ? "IP" : sourceName;
+  return sourceName === "Anzi" || sourceName === "IP" ? "旧记录" : sourceName;
 }
 
 function useAssetFeed(invite: string, hasSession: boolean) {

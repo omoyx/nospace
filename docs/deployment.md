@@ -24,12 +24,14 @@ Create a Docker Space from `space/`.
 Set Space variables:
 
 ```text
-INVITES=upload-code:upload:IP,read-code:download:Office
+INVITES=upload-code:upload:Uploader,read-code:download:Office
 ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
 DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=80
 ```
+
+For `upload` invites, the configured display name is not shown on uploaded items. The backend records the requester IP visible to the Space from `cf-connecting-ip`, `x-real-ip`, `x-forwarded-for`, `forwarded`, or the direct client connection.
 
 Set Space secrets:
 
@@ -71,7 +73,7 @@ Terminal 1:
 
 ```bash
 cd space
-INVITES='upload-demo:upload:IP,read-demo:download:Office' \
+INVITES='upload-demo:upload:Uploader,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 DATASET_REPO_ID='mannycooper/nospace-data' \
 HF_TOKEN='<token with dataset write access>' \

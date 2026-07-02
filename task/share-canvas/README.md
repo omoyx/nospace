@@ -73,6 +73,15 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Updated production Hugging Face Space `INVITES` secret so new uploads use `IP`.
   - Added frontend compatibility so existing stored `Anzi` metadata displays as `IP`.
   - Verified `POST /api/session` returns `{"role":"upload","name":"IP"}` for the upload invite.
+- Uploader IP source:
+  - Changed upload sessions and uploaded item metadata to use the requester IP visible to the Space.
+  - Updated production Hugging Face Space `INVITES` secret from `upload:IP` to `upload:Uploader`; the upload invite name is no longer used as the item source label.
+  - Kept old stored `Anzi`/`IP` source labels as `旧记录` in the frontend because historical records cannot be mapped back to their real uploader IP.
+  - Verified production `POST /api/session` for `upload-e0a4f080` returned `{"role":"upload","name":"66.112.223.21"}`.
+  - Verified a production upload stored `sourceName` as `66.112.223.21`.
+  - Verified the same uploaded file downloaded successfully with both `upload-e0a4f080` and `read-4f8a5790`.
+  - Verified read-only upload still returns 403.
+  - Removed the temporary verification upload from the private Dataset after testing.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
