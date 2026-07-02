@@ -53,6 +53,12 @@ Current public frontend:
 https://omoyx.github.io/nospace/
 ```
 
+The root GitHub Pages URL also redirects there:
+
+```text
+https://omoyx.github.io/
+```
+
 Current backend:
 
 ```text

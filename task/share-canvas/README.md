@@ -51,6 +51,10 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified built frontend references `mannycooper-nospace-storage.hf.space`.
   - Verified CORS preflight from `https://omoyx.github.io` for session and upload endpoints.
   - Captured public frontend screenshot at `/tmp/nospace-github-pages-public.png`.
+- GitHub Pages root redirect:
+  - Created `https://github.com/omoyx/omoyx.github.io`.
+  - Added root `index.html` and `404.html` redirecting to `/nospace/`.
+  - Verified `https://omoyx.github.io/` returns 200.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`
