@@ -57,6 +57,66 @@ button {
   padding: 22px 0 42px;
 }
 
+.login-shell {
+  display: grid;
+  width: min(100%, 720px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 32px 20px;
+  place-items: center;
+}
+
+.login-panel {
+  display: grid;
+  width: min(100%, 420px);
+  justify-items: center;
+  gap: 20px;
+}
+
+.login-panel h1 {
+  font-family: "Optima", "Palatino", serif;
+  font-size: clamp(48px, 12vw, 86px);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 0.92;
+}
+
+.login-invite {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(252, 253, 250, 0.82);
+  box-shadow: 0 16px 48px rgba(58, 64, 61, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.login-invite input {
+  min-width: 0;
+  flex: 1;
+  padding: 0 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #141816;
+  font-size: 15px;
+}
+
+.login-invite button {
+  flex: 0 0 auto;
+  padding: 0 18px;
+  background: #111412;
+  color: #fbfcf8;
+}
+
+.login-error {
+  color: #8b241d;
+  font-size: 13px;
+}
+
 .top-strip {
   display: flex;
   align-items: center;
@@ -151,6 +211,7 @@ p {
 }
 
 .invite-form button,
+.login-invite button,
 .download-link,
 .icon-button,
 .text-upload-button {
@@ -176,6 +237,7 @@ p {
 }
 
 .invite-form button:hover,
+.login-invite button:hover,
 .download-link:hover,
 .icon-button:hover,
 .text-upload-button:hover {
@@ -183,6 +245,7 @@ p {
 }
 
 .invite-form button:disabled,
+.login-invite button:disabled,
 .icon-button:disabled,
 .text-upload-button:disabled {
   cursor: not-allowed;
@@ -282,8 +345,7 @@ p {
 }
 
 .asset-card,
-.upload-tile,
-.intro-tile {
+.upload-tile {
   display: block;
   width: 100%;
   margin: 0;
@@ -527,37 +589,6 @@ p {
   font-weight: 800;
 }
 
-.intro-tile {
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.intro-tile h2 {
-  margin-top: 14px;
-  font-family: "Optima", "Palatino", serif;
-  font-size: clamp(28px, 4vw, 46px);
-  font-weight: 500;
-  line-height: 0.95;
-}
-
-.intro-tile p {
-  margin-top: 12px;
-  color: #4e5852;
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.intro-tile code {
-  display: block;
-  margin-top: 14px;
-  padding: 10px;
-  overflow-wrap: anywhere;
-  border-radius: 6px;
-  background: #111412;
-  color: #ecf5ef;
-  font-size: 11px;
-}
-
 .empty-state,
 .notice {
   position: relative;
@@ -685,6 +716,21 @@ p {
   }
 
   .invite-form button {
+    width: 100%;
+  }
+
+  .login-invite {
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 16px;
+  }
+
+  .login-invite input {
+    min-height: 42px;
+    text-align: center;
+  }
+
+  .login-invite button {
     width: 100%;
   }
 

@@ -9,12 +9,10 @@ import {
   RefreshCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
-import { apiBaseUrl, assetDownloadUrl, assetFileUrl, deleteAsset, listAssets, uploadAsset, verifyInvite } from "./api";
+import { assetDownloadUrl, assetFileUrl, deleteAsset, listAssets, uploadAsset, verifyInvite } from "./api";
 import type { Asset, AssetKind, Session } from "./types";
 
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
@@ -24,85 +22,6 @@ function savedInvite(): string {
   if (typeof window === "undefined") return defaultInvite;
   return window.localStorage.getItem(inviteStorageKey) || defaultInvite;
 }
-
-const sampleAssets: Asset[] = [
-  {
-    id: "sample-brief",
-    filename: "sample-brief.txt",
-    originalName: "today-note.txt",
-    mimeType: "text/plain",
-    size: 1240,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 22).toISOString(),
-    sourceName: "Mira",
-    note: "内网临时要用的说明文本",
-    url: "",
-    downloadUrl: "",
-  },
-  {
-    id: "sample-image",
-    filename: "sample-image.png",
-    originalName: "desk-reference.png",
-    mimeType: "image/png",
-    size: 814000,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
-    sourceName: "203.0.113.24",
-    note: "视觉参考图",
-    width: 1200,
-    height: 760,
-    url: "",
-    downloadUrl: "",
-  },
-  {
-    id: "sample-pack",
-    filename: "sample-pack.zip",
-    originalName: "handoff-assets.zip",
-    mimeType: "application/zip",
-    size: 4381000,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 260).toISOString(),
-    sourceName: "Gate",
-    note: "脚本和配置备份",
-    url: "",
-    downloadUrl: "",
-  },
-  {
-    id: "sample-pdf",
-    filename: "sample-pdf.pdf",
-    originalName: "handoff-brief.pdf",
-    mimeType: "application/pdf",
-    size: 289000,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 410).toISOString(),
-    sourceName: "Office",
-    note: "只读邀请码要下载的说明书",
-    url: "",
-    downloadUrl: "",
-  },
-  {
-    id: "sample-copy",
-    filename: "sample-copy.txt",
-    originalName: "proxy-list.txt",
-    mimeType: "text/plain",
-    size: 920,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 620).toISOString(),
-    sourceName: "Gate",
-    note: "一些需要复制进内网的短文本",
-    url: "",
-    downloadUrl: "",
-  },
-  {
-    id: "sample-scan",
-    filename: "sample-scan.png",
-    originalName: "whiteboard-scan.png",
-    mimeType: "image/png",
-    size: 1411000,
-    uploadedAt: new Date(Date.now() - 1000 * 60 * 740).toISOString(),
-    sourceName: "Mira",
-    note: "会后白板照片",
-    width: 1600,
-    height: 1100,
-    url: "",
-    downloadUrl: "",
-  },
-];
 
 function assetKind(asset: Asset): AssetKind {
   if (asset.mimeType.startsWith("image/")) return "image";
@@ -221,7 +140,7 @@ export function App() {
   }, [signIn]);
 
   const visibleAssets = useMemo(() => {
-    const feed = session ? assets : sampleAssets;
+    const feed = session ? assets : [];
     if (!query.trim()) return feed;
     const needle = query.trim().toLowerCase();
     return feed.filter((asset) =>
@@ -304,6 +223,31 @@ export function App() {
   const canUpload = session?.role === "upload";
   const hasRealAssets = session && visibleAssets.length > 0;
 
+  if (!session) {
+    return (
+      <main className="login-shell">
+        <form className="login-panel" onSubmit={handleAuth} aria-label="邀请码登录">
+          <h1>NoSpace</h1>
+          <div className="login-invite">
+            <input
+              value={invite}
+              onChange={(event) => setInvite(event.target.value)}
+              placeholder="邀请码"
+              type="password"
+              autoComplete="off"
+              aria-label="邀请码"
+            />
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
+              <span>进入</span>
+            </button>
+          </div>
+          {authError && <p className="login-error">{authError}</p>}
+        </form>
+      </main>
+    );
+  }
+
   return (
     <main className="page-shell">
       <section className="top-strip" aria-label="访问控制">
@@ -330,7 +274,7 @@ export function App() {
           </label>
           <button type="submit" disabled={authLoading}>
             {authLoading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
-            <span>{session ? "切换" : "进入"}</span>
+            <span>切换</span>
           </button>
         </form>
       </section>
@@ -340,12 +284,8 @@ export function App() {
       <section className="canvas-board" aria-label="内容画布">
         <div className="board-toolbar">
           <div className="session-pill">
-            {session ? <ShieldCheck size={17} /> : <Sparkles size={17} />}
-            <span>
-              {session
-                ? `${session.name} · ${session.role === "upload" ? "可上传" : "仅下载"}`
-                : "预览模式"}
-            </span>
+            <ShieldCheck size={17} />
+            <span>{`${session.name} · ${session.role === "upload" ? "可上传" : "仅下载"}`}</span>
           </div>
 
           <div className="tool-cluster">
@@ -395,16 +335,12 @@ export function App() {
               {uploadError && <p className="tile-error">{uploadError}</p>}
             </article>
           )}
-
-          {!session && <IntroTile apiBaseUrl={apiBaseUrl} />}
-
           {visibleAssets.map((asset, index) => (
             <AssetCard
               key={asset.id}
               asset={asset}
               index={index}
               invite={invite}
-              isPreview={!session}
               canDelete={canUpload}
               deleting={deletingId === asset.id}
               onCopy={() => void copyLink(asset)}
@@ -413,7 +349,7 @@ export function App() {
           ))}
         </div>
 
-        {session && !loading && !hasRealAssets && (
+        {!loading && !hasRealAssets && (
           <div className="empty-state">
             <Upload size={20} />
             <p>{canUpload ? "还没有内容，先把第一份文件放上来。" : "这里还没有可下载内容。"}</p>
@@ -428,24 +364,10 @@ export function App() {
   );
 }
 
-function IntroTile({ apiBaseUrl }: { apiBaseUrl: string }) {
-  return (
-    <article className="intro-tile">
-      <span className="eyebrow">Simple relay</span>
-      <h2>把外网内容临时放到一个清楚的地方。</h2>
-      <p>
-        静态页面负责呈现和交互，Hugging Face Space 负责鉴权与文件存储。下载邀请码只能看和取，上传邀请码才能写入。
-      </p>
-      <code>{apiBaseUrl}</code>
-    </article>
-  );
-}
-
 function AssetCard({
   asset,
   index,
   invite,
-  isPreview,
   canDelete,
   deleting,
   onCopy,
@@ -454,17 +376,16 @@ function AssetCard({
   asset: Asset;
   index: number;
   invite: string;
-  isPreview: boolean;
   canDelete: boolean;
   deleting: boolean;
   onCopy: () => void;
   onDelete: () => void;
 }) {
   const kind = assetKind(asset);
-  const downloadUrl = isPreview || !asset.downloadUrl ? "#" : assetDownloadUrl(asset, invite);
+  const downloadUrl = asset.downloadUrl ? assetDownloadUrl(asset, invite) : "#";
   const isImage = kind === "image" && asset.url;
   const isText = kind === "text";
-  const previewUrl = isImage && !isPreview ? assetFileUrl(asset, invite) : asset.url;
+  const previewUrl = isImage ? assetFileUrl(asset, invite) : asset.url;
   const toneClass = `asset-card tone-${index % 5}`;
 
   return (
@@ -482,7 +403,7 @@ function AssetCard({
         </div>
       )}
 
-      {isText ? <TextPreview asset={asset} invite={invite} isPreview={isPreview} /> : asset.note && <p className="asset-note">{asset.note}</p>}
+      {isText ? <TextPreview asset={asset} invite={invite} /> : asset.note && <p className="asset-note">{asset.note}</p>}
 
       <div className="asset-footer">
         <div>
@@ -491,25 +412,19 @@ function AssetCard({
           <small>{formatBytes(asset.size)}</small>
         </div>
         <div className="card-actions">
-          {!isPreview && (
-            <button className="icon-button small" onClick={onCopy} title="复制下载链接">
-              <Copy size={15} />
-              <span className="sr-only">复制下载链接</span>
-            </button>
-          )}
-          {!isPreview && canDelete && (
+          <button className="icon-button small" onClick={onCopy} title="复制下载链接">
+            <Copy size={15} />
+            <span className="sr-only">复制下载链接</span>
+          </button>
+          {canDelete && (
             <button className="icon-button small danger" onClick={onDelete} disabled={deleting} title="删除资产">
               {deleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
               <span className="sr-only">删除资产</span>
             </button>
           )}
-          <a
-            className={isPreview ? "download-link disabled" : "download-link"}
-            href={downloadUrl}
-            aria-disabled={isPreview}
-          >
-            {isPreview ? <X size={15} /> : <ArrowDownToLine size={15} />}
-            <span>{isPreview ? "Locked" : "Get"}</span>
+          <a className="download-link" href={downloadUrl}>
+            <ArrowDownToLine size={15} />
+            <span>Get</span>
           </a>
         </div>
       </div>
@@ -517,12 +432,12 @@ function AssetCard({
   );
 }
 
-function TextPreview({ asset, invite, isPreview }: { asset: Asset; invite: string; isPreview: boolean }) {
+function TextPreview({ asset, invite }: { asset: Asset; invite: string }) {
   const [content, setContent] = useState(asset.note || "");
 
   useEffect(() => {
     let ignored = false;
-    if (isPreview || !asset.url) {
+    if (!asset.url) {
       setContent(asset.note || "");
       return () => {
         ignored = true;
@@ -541,7 +456,7 @@ function TextPreview({ asset, invite, isPreview }: { asset: Asset; invite: strin
     return () => {
       ignored = true;
     };
-  }, [asset, invite, isPreview]);
+  }, [asset, invite]);
 
   return <pre className="text-preview">{content || "空文本"}</pre>;
 }

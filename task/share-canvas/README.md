@@ -104,6 +104,18 @@ Build a minimal modern website for invite-gated upload and download across norma
   - `python3 -m py_compile space/app.py` passed after the change.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Invite rotation and minimal login:
+  - Rotated the production Space `INVITES` secret to the requested Huawei upload/read invite values.
+  - Restarted the Space so the process picked up the new secret.
+  - Verified the new upload invite returns upload role and IP source, the new read invite returns download role, and both old production invites return 401.
+  - Verified both new invites can list production assets.
+  - Changed the logged-out frontend to only show a centered `NoSpace` title and invite input.
+  - Removed logged-out sample assets and the preview intro tile.
+  - Added a deployment note to keep real production invite values out of committed files.
+  - Captured UI screenshots:
+    - `/tmp/nospace-centered-login.png`
+    - `/tmp/nospace-centered-login-mobile.png`
+    - `/tmp/nospace-huawei-logged-in.png`
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.

@@ -31,6 +31,8 @@ DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=80
 ```
 
+Production invite values are access credentials. Keep the real values in the Space `INVITES` secret/variable and do not commit them to the repository.
+
 For `upload` invites, the configured display name is not shown on uploaded items. The backend records the requester IP visible to the Space from `cf-connecting-ip`, `x-real-ip`, `x-forwarded-for`, `forwarded`, or the direct client connection.
 
 Set Space secrets:
