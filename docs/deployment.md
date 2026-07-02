@@ -22,7 +22,7 @@ Create a Docker Space from `space/`.
 Set Space variables:
 
 ```text
-INVITES=upload-code:upload:Anzi,read-code:download:Office
+INVITES=upload-code:upload:IP,read-code:download:Office
 ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
 MAX_UPLOAD_MB=80
@@ -62,7 +62,7 @@ Terminal 1:
 
 ```bash
 cd space
-INVITES='upload-demo:upload:Anzi,read-demo:download:Office' \
+INVITES='upload-demo:upload:IP,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 NOSPACE_DATA_DIR='./storage' \
 uvicorn app:app --host 127.0.0.1 --port 7860 --reload

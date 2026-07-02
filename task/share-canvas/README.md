@@ -55,6 +55,11 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Created `https://github.com/omoyx/omoyx.github.io`.
   - Added root `index.html` and `404.html` redirecting to `/nospace/`.
   - Verified `https://omoyx.github.io/` returns 200.
+- Source label rename:
+  - Changed upload source display from `Anzi` to `IP`.
+  - Updated production Hugging Face Space `INVITES` secret so new uploads use `IP`.
+  - Added frontend compatibility so existing stored `Anzi` metadata displays as `IP`.
+  - Verified `POST /api/session` returns `{"role":"upload","name":"IP"}` for the upload invite.
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`

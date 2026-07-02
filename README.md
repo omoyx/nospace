@@ -29,7 +29,7 @@ Run the Space backend:
 
 ```bash
 cd space
-INVITES='upload-demo:upload:Anzi,read-demo:download:Office' \
+INVITES='upload-demo:upload:IP,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 NOSPACE_DATA_DIR='./storage' \
 ../.venv/bin/uvicorn app:app --host 127.0.0.1 --port 7860

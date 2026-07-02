@@ -38,7 +38,7 @@ const sampleAssets: Asset[] = [
     mimeType: "image/png",
     size: 814000,
     uploadedAt: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
-    sourceName: "Anzi",
+    sourceName: "IP",
     note: "视觉参考图",
     width: 1200,
     height: 760,
@@ -134,6 +134,10 @@ function formatTime(iso: string): string {
   return formatter.format(new Date(iso));
 }
 
+function displaySourceName(sourceName: string): string {
+  return sourceName === "Anzi" ? "IP" : sourceName;
+}
+
 function useAssetFeed(invite: string, hasSession: boolean) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -179,7 +183,7 @@ export function App() {
     if (!query.trim()) return feed;
     const needle = query.trim().toLowerCase();
     return feed.filter((asset) =>
-      [asset.originalName, asset.sourceName, asset.note, asset.mimeType]
+      [asset.originalName, displaySourceName(asset.sourceName), asset.sourceName, asset.note, asset.mimeType]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(needle)),
     );
@@ -428,7 +432,7 @@ function AssetCard({
       <div className="asset-footer">
         <div>
           <span className="source-dot" />
-          <strong>{asset.sourceName}</strong>
+          <strong>{displaySourceName(asset.sourceName)}</strong>
           <small>{formatBytes(asset.size)}</small>
         </div>
         <div className="card-actions">
