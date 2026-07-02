@@ -53,6 +53,13 @@ export async function uploadAsset(invite: string, file: File, note: string): Pro
   });
 }
 
+export async function deleteAsset(invite: string, assetId: string): Promise<void> {
+  await request<{ ok: string; id: string }>(`/api/assets/${encodeURIComponent(assetId)}`, {
+    method: "DELETE",
+    headers: { "X-Invite-Code": invite },
+  });
+}
+
 export function assetDownloadUrl(asset: Asset, invite: string): string {
   const separator = asset.downloadUrl.includes("?") ? "&" : "?";
   return `${apiBaseUrl}${asset.downloadUrl}${separator}invite=${encodeURIComponent(invite)}`;

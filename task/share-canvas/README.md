@@ -7,7 +7,7 @@ Build a minimal modern website for invite-gated upload and download across norma
 ## Scope
 
 - Static React frontend with a canvas-like masonry feed.
-- Invite roles: `upload` can list, download, upload; `download` can list and download only.
+- Invite roles: `upload` can list, download, upload, delete; `download` can list and download only.
 - Hugging Face Space FastAPI backend for invite-gated file APIs.
 - Private Hugging Face Dataset repo for durable file storage.
 - Hugging Face Space backend for the first public hosted version.
@@ -90,6 +90,18 @@ Build a minimal modern website for invite-gated upload and download across norma
     - `/tmp/nospace-wide-grid-10s.png`
     - `/tmp/nospace-narrow-grid.png`
     - `/tmp/nospace-zoomlike-grid.png`
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Asset deletion:
+  - Added `DELETE /api/assets/{item_id}` to the Space backend.
+  - Delete permission is limited to `upload` invites; `download` invites return 403.
+  - Dataset deletion is committed together with the `index.json` update.
+  - Added a compact trash button to asset cards for upload sessions.
+  - Verified production temporary upload, read-only delete rejection, upload delete success, list removal, deleted download 404, and CORS `DELETE` preflight.
+  - Captured UI screenshots:
+    - `/tmp/nospace-delete-button-wide.png`
+    - `/tmp/nospace-delete-button-mobile.png`
+  - `python3 -m py_compile space/app.py` passed after the change.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:

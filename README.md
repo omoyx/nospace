@@ -2,7 +2,7 @@
 
 NoSpace is a tiny invite-gated sharing canvas for moving files and text between a normal network and a restricted intranet.
 
-The frontend is a static Vite app deployed on GitHub Pages. The backend is a Hugging Face Docker Space, and durable files live in a private Hugging Face Dataset repo. Invite codes decide whether a visitor can upload or only list and download.
+The frontend is a static Vite app deployed on GitHub Pages. The backend is a Hugging Face Docker Space, and durable files live in a private Hugging Face Dataset repo. Invite codes decide whether a visitor can upload/delete or only list and download.
 
 ## Why this shape
 

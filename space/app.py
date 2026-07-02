@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, hf_hub_download
 from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
 from pydantic import BaseModel
 
@@ -48,7 +48,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -155,6 +155,31 @@ def save_index(items: list[dict]) -> None:
     )
 
 
+def delete_asset_item(item_id: str, invite: str | None) -> dict[str, str]:
+    session = session_for(invite)
+    if session["role"] != "upload":
+        raise HTTPException(status_code=403, detail="当前邀请码没有删除权限")
+
+    items = load_index()
+    item = next((item for item in items if item["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    next_items = [item for item in items if item["id"] != item_id]
+    payload = json.dumps(next_items, ensure_ascii=False, indent=2).encode("utf-8")
+    ensure_dataset()
+    hf_api.create_commit(
+        repo_id=DATASET_REPO_ID,
+        repo_type="dataset",
+        operations=[
+            CommitOperationDelete(path_in_repo=file_path(item)),
+            CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
+        ],
+        commit_message=f"Delete {item['originalName']}",
+    )
+    return {"ok": "true", "id": item_id}
+
+
 def session_for(invite: str | None) -> dict[str, str]:
     if not invite or invite not in INVITES:
         raise HTTPException(status_code=401, detail="邀请码无效")
@@ -243,6 +268,11 @@ async def create_asset(
     items.append(item)
     save_index(items)
     return public_item(item)
+
+
+@app.delete("/api/assets/{item_id}")
+def delete_asset(item_id: str, x_invite_code: Annotated[str | None, Header()] = None) -> dict[str, str]:
+    return delete_asset_item(item_id, x_invite_code)
 
 
 def file_item(item_id: str, invite: str | None) -> tuple[dict, Path]:

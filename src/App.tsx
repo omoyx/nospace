@@ -10,10 +10,11 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { apiBaseUrl, assetDownloadUrl, assetFileUrl, listAssets, uploadAsset, verifyInvite } from "./api";
+import { apiBaseUrl, assetDownloadUrl, assetFileUrl, deleteAsset, listAssets, uploadAsset, verifyInvite } from "./api";
 import type { Asset, AssetKind, Session } from "./types";
 
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
@@ -180,6 +181,8 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const { assets, setAssets, loading, error, refresh } = useAssetFeed(invite, Boolean(session));
@@ -279,6 +282,23 @@ export function App() {
   const copyLink = async (asset: Asset) => {
     if (!session || !asset.downloadUrl) return;
     await navigator.clipboard.writeText(assetDownloadUrl(asset, invite));
+  };
+
+  const handleDeleteAsset = async (asset: Asset) => {
+    if (!session || session.role !== "upload" || deletingId) return;
+    const confirmed = window.confirm(`删除 ${asset.originalName}？`);
+    if (!confirmed) return;
+
+    setDeletingId(asset.id);
+    setActionError("");
+    try {
+      await deleteAsset(invite, asset.id);
+      setAssets((current) => current.filter((item) => item.id !== asset.id));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "删除失败");
+    } finally {
+      setDeletingId("");
+    }
   };
 
   const canUpload = session?.role === "upload";
@@ -385,7 +405,10 @@ export function App() {
               index={index}
               invite={invite}
               isPreview={!session}
+              canDelete={canUpload}
+              deleting={deletingId === asset.id}
               onCopy={() => void copyLink(asset)}
+              onDelete={() => void handleDeleteAsset(asset)}
             />
           ))}
         </div>
@@ -398,6 +421,7 @@ export function App() {
         )}
 
         {error && <div className="notice error">{error}</div>}
+        {actionError && <div className="notice error">{actionError}</div>}
 
       </section>
     </main>
@@ -422,13 +446,19 @@ function AssetCard({
   index,
   invite,
   isPreview,
+  canDelete,
+  deleting,
   onCopy,
+  onDelete,
 }: {
   asset: Asset;
   index: number;
   invite: string;
   isPreview: boolean;
+  canDelete: boolean;
+  deleting: boolean;
   onCopy: () => void;
+  onDelete: () => void;
 }) {
   const kind = assetKind(asset);
   const downloadUrl = isPreview || !asset.downloadUrl ? "#" : assetDownloadUrl(asset, invite);
@@ -465,6 +495,12 @@ function AssetCard({
             <button className="icon-button small" onClick={onCopy} title="复制下载链接">
               <Copy size={15} />
               <span className="sr-only">复制下载链接</span>
+            </button>
+          )}
+          {!isPreview && canDelete && (
+            <button className="icon-button small danger" onClick={onDelete} disabled={deleting} title="删除资产">
+              {deleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+              <span className="sr-only">删除资产</span>
             </button>
           )}
           <a
