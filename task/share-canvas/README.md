@@ -155,6 +155,14 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Captured screenshot `/tmp/nospace-global-drag-blur.png`.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Canvas-only drag blur:
+  - Changed the drag blur layer from viewport-wide fixed positioning to an absolute layer clipped inside `.canvas-board`.
+  - Kept the top header outside the blur effect while preserving the board drop highlight.
+  - Increased the canvas-only blur strength to `blur(18px)` with a denser glass layer.
+  - Verified with an API-mocked Chromium page that `.canvas-board.drop-active::after` is absolute, clipped with `inset(0 round 28px)`, uses `backdrop-filter: blur(18px)`, and dropping `canvas-only-blur.txt` still uploads.
+  - Captured screenshot `/tmp/nospace-strong-canvas-drag-blur.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
