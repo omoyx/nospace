@@ -3,6 +3,7 @@
 ## Goal
 
 Remove decorative background elements and green accents, while keeping the large rounded card style.
+Record the release requirement so future key changes are verified online, not only locally.
 
 ## Verification
 
@@ -16,6 +17,7 @@ Remove decorative background elements and green accents, while keeping the large
   - `M src/styles.css`
   - `M task/share-canvas/README.md`
   - `?? task/minimal-gray-visual/`
+- Updated `AGENTS.md` to require publishing key changes to the official online environment and verifying the public URL.
 
 ## Mistakes
 
