@@ -116,6 +116,16 @@ Build a minimal modern website for invite-gated upload and download across norma
     - `/tmp/nospace-centered-login.png`
     - `/tmp/nospace-centered-login-mobile.png`
     - `/tmp/nospace-huawei-logged-in.png`
+- Refresh without login flash:
+  - Added a lightweight `nospace:session` cache for the last successful role/name display state.
+  - Refresh with a cached session now renders the canvas immediately while the invite is revalidated in the background.
+  - Refresh with only a saved invite now shows a neutral `恢复中` state instead of the login form until validation finishes.
+  - Invalid saved invites still clear both cached invite and session before returning to the login form.
+  - Verified with Playwright storage-state screenshots:
+    - `/tmp/nospace-refresh-with-session.png`
+    - `/tmp/nospace-refresh-invite-only.png`
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.

@@ -17,10 +17,30 @@ import type { Asset, AssetKind, Session } from "./types";
 
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
 const inviteStorageKey = "nospace:invite";
+const sessionStorageKey = "nospace:session";
 
 function savedInvite(): string {
   if (typeof window === "undefined") return defaultInvite;
   return window.localStorage.getItem(inviteStorageKey) || defaultInvite;
+}
+
+function savedSession(): Session | null {
+  if (typeof window === "undefined" || !savedInvite()) return null;
+  const rawSession = window.localStorage.getItem(sessionStorageKey);
+  if (!rawSession) return null;
+
+  try {
+    const session = JSON.parse(rawSession) as Partial<Session>;
+    if ((session.role === "upload" || session.role === "download") && typeof session.name === "string") {
+      return { role: session.role, name: session.name };
+    }
+  } catch {
+    window.localStorage.removeItem(sessionStorageKey);
+    return null;
+  }
+
+  window.localStorage.removeItem(sessionStorageKey);
+  return null;
 }
 
 function assetKind(asset: Asset): AssetKind {
@@ -92,7 +112,8 @@ function useAssetFeed(invite: string, hasSession: boolean) {
 
 export function App() {
   const [invite, setInvite] = useState(savedInvite);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null>(savedSession);
+  const [authRestoring, setAuthRestoring] = useState(() => Boolean(savedInvite()) && !savedSession());
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -120,10 +141,12 @@ export function App() {
       setSession(nextSession);
       setInvite(trimmedInvite);
       window.localStorage.setItem(inviteStorageKey, trimmedInvite);
+      window.localStorage.setItem(sessionStorageKey, JSON.stringify(nextSession));
       setAuthError("");
     } catch (error) {
       setSession(null);
       window.localStorage.removeItem(inviteStorageKey);
+      window.localStorage.removeItem(sessionStorageKey);
       if (!silent) {
         setAuthError(error instanceof Error ? error.message : "邀请码不可用");
       }
@@ -135,7 +158,9 @@ export function App() {
   useEffect(() => {
     const storedInvite = savedInvite();
     if (storedInvite) {
-      void signIn(storedInvite, true);
+      void signIn(storedInvite, true).finally(() => setAuthRestoring(false));
+    } else {
+      setAuthRestoring(false);
     }
   }, [signIn]);
 
@@ -222,6 +247,20 @@ export function App() {
 
   const canUpload = session?.role === "upload";
   const hasRealAssets = session && visibleAssets.length > 0;
+
+  if (authRestoring) {
+    return (
+      <main className="login-shell">
+        <div className="login-panel restore-panel" aria-live="polite">
+          <h1>NoSpace</h1>
+          <div className="restore-indicator">
+            <Loader2 className="spin" size={16} />
+            <span>恢复中</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (!session) {
     return (

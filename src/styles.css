@@ -117,6 +117,25 @@ button {
   font-size: 13px;
 }
 
+.restore-panel {
+  gap: 16px;
+}
+
+.restore-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(252, 253, 250, 0.68);
+  color: #5f6963;
+  font-size: 13px;
+  box-shadow: 0 12px 34px rgba(58, 64, 61, 0.08);
+  backdrop-filter: blur(16px);
+}
+
 .top-strip {
   display: flex;
   align-items: center;
