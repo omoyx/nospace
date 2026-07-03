@@ -18,6 +18,7 @@ import type { Asset, AssetKind, Session } from "./types";
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
 const inviteStorageKey = "nospace:invite";
 const sessionStorageKey = "nospace:session";
+const assetRefreshIntervalMs = 60_000;
 
 function savedInvite(): string {
   if (typeof window === "undefined") return defaultInvite;
@@ -89,9 +90,9 @@ function useAssetFeed(invite: string, hasSession: boolean) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options: { silent?: boolean } = {}) => {
     if (!hasSession || !invite) return;
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     setError("");
     try {
       const nextAssets = await listAssets(invite);
@@ -99,13 +100,31 @@ function useAssetFeed(invite: string, hasSession: boolean) {
     } catch (error) {
       setError(error instanceof Error ? error.message : "列表加载失败");
     } finally {
-      setLoading(false);
+      if (!options.silent) setLoading(false);
     }
   }, [hasSession, invite]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!hasSession || !invite) return;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh({ silent: true });
+      }
+    };
+
+    const intervalId = window.setInterval(refreshWhenVisible, assetRefreshIntervalMs);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [hasSession, invite, refresh]);
 
   return { assets, setAssets, loading, error, refresh };
 }

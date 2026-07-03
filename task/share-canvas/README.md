@@ -126,6 +126,14 @@ Build a minimal modern website for invite-gated upload and download across norma
     - `/tmp/nospace-refresh-invite-only.png`
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Low-pressure asset auto-refresh:
+  - Added silent asset list refresh every 60 seconds after login.
+  - Auto-refresh only runs while the browser tab is visible and pauses in hidden tabs.
+  - Returning to a visible tab triggers a silent refresh.
+  - Manual refresh, upload, and delete flows remain unchanged.
+  - Verified with HAR capture over 75 seconds: `/api/assets` returned two 200 responses, initial load plus one automatic refresh.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
