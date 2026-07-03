@@ -173,6 +173,15 @@ Build a minimal modern website for invite-gated upload and download across norma
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
   - `git status --short` showed only `src/App.tsx`, `src/api.ts`, and `src/styles.css` modified before adding this task note.
+- Drag overlay fade and icon:
+  - Replaced the drag blur pseudo-element with a real `.drag-overlay` so it can fade out after drag leave/drop.
+  - Added a minimal centered upload icon inside the canvas-only blur state.
+  - Kept the overlay `pointer-events: none` so file drops still reach `.canvas-board`.
+  - Verified with an API-mocked Chromium page that active drag uses `.drag-overlay.is-active` with `drag-overlay-in`, drop switches to `.drag-overlay.is-leaving` with `drag-overlay-out`, and the overlay is removed after fade-out.
+  - Verified the delayed upload still shows one placeholder and then replaces it with the real asset card.
+  - Captured screenshot `/tmp/nospace-drag-overlay-icon-active.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.

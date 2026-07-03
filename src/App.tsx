@@ -164,6 +164,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [note, setNote] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [dragOverlayExiting, setDragOverlayExiting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadPlaceholder[]>([]);
   const [uploadError, setUploadError] = useState("");
@@ -171,6 +172,7 @@ export function App() {
   const [deletingId, setDeletingId] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepthRef = useRef(0);
+  const dragOverlayTimerRef = useRef<number | null>(null);
 
   const { assets, setAssets, loading, error, refresh } = useAssetFeed(invite, Boolean(session));
 
@@ -225,6 +227,40 @@ export function App() {
   const canUpload = session?.role === "upload";
   const hasRealAssets = session && visibleAssets.length > 0;
   const hasVisibleContent = hasRealAssets || uploadItems.length > 0;
+  const showDragOverlay = dragging || dragOverlayExiting;
+  const canvasClassName = ["canvas-board", dragging ? "drop-active" : ""].filter(Boolean).join(" ");
+  const dragOverlayClassName = dragging ? "drag-overlay is-active" : "drag-overlay is-leaving";
+
+  const clearDragOverlayTimer = () => {
+    if (dragOverlayTimerRef.current !== null) {
+      window.clearTimeout(dragOverlayTimerRef.current);
+      dragOverlayTimerRef.current = null;
+    }
+  };
+
+  const openDragOverlay = () => {
+    clearDragOverlayTimer();
+    setDragOverlayExiting(false);
+    setDragging(true);
+  };
+
+  const closeDragOverlay = () => {
+    clearDragOverlayTimer();
+    setDragging(false);
+    setDragOverlayExiting(true);
+    dragOverlayTimerRef.current = window.setTimeout(() => {
+      setDragOverlayExiting(false);
+      dragOverlayTimerRef.current = null;
+    }, 240);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (dragOverlayTimerRef.current !== null) {
+        window.clearTimeout(dragOverlayTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -329,7 +365,7 @@ export function App() {
     if (!canUpload) return;
 
     dragDepthRef.current += 1;
-    setDragging(true);
+    openDragOverlay();
   };
 
   const handleCanvasDragOver = (event: DragEvent<HTMLElement>) => {
@@ -347,7 +383,7 @@ export function App() {
 
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
     if (dragDepthRef.current === 0) {
-      setDragging(false);
+      closeDragOverlay();
     }
   };
 
@@ -356,7 +392,7 @@ export function App() {
 
     event.preventDefault();
     dragDepthRef.current = 0;
-    setDragging(false);
+    closeDragOverlay();
     if (!canUpload) return;
 
     void handleUploadFiles(event.dataTransfer.files);
@@ -459,13 +495,20 @@ export function App() {
       {authError && <div className="notice error">{authError}</div>}
 
       <section
-        className={dragging ? "canvas-board drop-active" : "canvas-board"}
+        className={canvasClassName}
         aria-label="内容画布"
         onDragEnter={handleCanvasDragEnter}
         onDragOver={handleCanvasDragOver}
         onDragLeave={handleCanvasDragLeave}
         onDrop={handleDrop}
       >
+        {showDragOverlay && (
+          <div className={dragOverlayClassName} aria-hidden="true">
+            <span className="drag-overlay-icon">
+              <Upload size={30} strokeWidth={1.7} />
+            </span>
+          </div>
+        )}
         <div className="board-toolbar">
           <div className="session-pill">
             <ShieldCheck size={17} />
