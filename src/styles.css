@@ -6,19 +6,19 @@
     "PingFang SC",
     "Hiragino Sans GB",
     sans-serif;
-  background: #e8ebea;
-  color: #111412;
+  background: #f3f4f4;
+  color: #171717;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  --surface: rgba(250, 251, 249, 0.88);
-  --ink-soft: #68716c;
-  --line: rgba(20, 26, 23, 0.1);
-  --shadow: 0 18px 48px rgba(50, 56, 54, 0.1);
-  --sharp-shadow: 0 10px 26px rgba(25, 28, 26, 0.1);
-  --acid: #c7ff15;
-  --mint: #00e8b5;
-  --cyan: #21bde5;
-  --paper: #f8f8f5;
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-quiet: rgba(247, 247, 247, 0.92);
+  --ink-soft: #6f7377;
+  --line: rgba(23, 23, 23, 0.1);
+  --shadow: 0 18px 48px rgba(20, 20, 20, 0.08);
+  --sharp-shadow: 0 10px 26px rgba(20, 20, 20, 0.09);
+  --accent: #2f3237;
+  --accent-soft: rgba(47, 50, 55, 0.13);
+  --paper: #fbfbfb;
   --radius: 24px;
 }
 
@@ -30,10 +30,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.36) 1px, transparent 1px) 0 0 / 84px 84px,
-    linear-gradient(0deg, rgba(255, 255, 255, 0.42) 1px, transparent 1px) 0 0 / 84px 84px,
-    #e7ebe9;
+  background: #f3f4f4;
 }
 
 button,
@@ -89,8 +86,8 @@ button {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(252, 253, 250, 0.82);
-  box-shadow: 0 16px 48px rgba(58, 64, 61, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 48px rgba(25, 25, 25, 0.1);
   backdrop-filter: blur(16px);
 }
 
@@ -101,15 +98,15 @@ button {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #141816;
+  color: #171717;
   font-size: 15px;
 }
 
 .login-invite button {
   flex: 0 0 auto;
   padding: 0 18px;
-  background: #111412;
-  color: #fbfcf8;
+  background: #171717;
+  color: #ffffff;
 }
 
 .login-error {
@@ -129,10 +126,10 @@ button {
   padding: 0 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(252, 253, 250, 0.68);
-  color: #5f6963;
+  background: rgba(255, 255, 255, 0.78);
+  color: #666a6f;
   font-size: 13px;
-  box-shadow: 0 12px 34px rgba(58, 64, 61, 0.08);
+  box-shadow: 0 12px 34px rgba(25, 25, 25, 0.08);
   backdrop-filter: blur(16px);
 }
 
@@ -157,9 +154,9 @@ button {
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 24px rgba(40, 44, 42, 0.08);
-  color: #1b211e;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 24px rgba(25, 25, 25, 0.08);
+  color: #202020;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -194,8 +191,8 @@ p {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(252, 253, 250, 0.8);
-  box-shadow: 0 10px 34px rgba(58, 64, 61, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 34px rgba(25, 25, 25, 0.09);
   backdrop-filter: blur(16px);
 }
 
@@ -208,7 +205,7 @@ p {
 
 .invite-form span,
 .eyebrow {
-  color: #727a75;
+  color: #73777b;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0;
@@ -222,7 +219,7 @@ p {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #141816;
+  color: #171717;
 }
 
 .invite-form input {
@@ -240,8 +237,8 @@ p {
   gap: 7px;
   min-height: 38px;
   border-radius: 999px;
-  color: #121512;
-  background: #eff2ef;
+  color: #171717;
+  background: #f0f0f0;
   cursor: pointer;
   transition:
     transform 180ms ease,
@@ -251,8 +248,8 @@ p {
 
 .invite-form button {
   padding: 0 16px;
-  background: #111412;
-  color: #fbfcf8;
+  background: #171717;
+  color: #ffffff;
 }
 
 .invite-form button:hover,
@@ -278,23 +275,20 @@ p {
   margin-top: 18px;
   padding: clamp(18px, 4vw, 34px);
   overflow: visible;
-  border: 1px solid rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(23, 23, 23, 0.08);
   border-radius: 28px;
-  background:
-    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.76), transparent 32%),
-    radial-gradient(circle at 78% 8%, rgba(0, 232, 181, 0.15), transparent 24%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(238, 241, 239, 0.72));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  background: rgba(248, 248, 248, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease;
 }
 
 .canvas-board.drop-active {
-  border-color: rgba(17, 20, 18, 0.36);
+  border-color: rgba(23, 23, 23, 0.32);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 0 0 2px rgba(0, 232, 181, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 0 0 2px var(--accent-soft);
 }
 
 .drag-overlay {
@@ -303,9 +297,9 @@ p {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(232, 235, 233, 0.34);
-  -webkit-backdrop-filter: blur(18px) saturate(1.14);
-  backdrop-filter: blur(18px) saturate(1.14);
+  background: rgba(244, 244, 244, 0.42);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
   border-radius: inherit;
   clip-path: inset(0 round 28px);
   pointer-events: none;
@@ -314,7 +308,7 @@ p {
 .drag-overlay::before {
   position: absolute;
   inset: 12px;
-  border: 1px dashed rgba(17, 20, 18, 0.34);
+  border: 1px dashed rgba(23, 23, 23, 0.34);
   border-radius: 22px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.34);
   content: "";
@@ -335,11 +329,11 @@ p {
   width: 76px;
   height: 76px;
   place-items: center;
-  border: 1px solid rgba(17, 20, 18, 0.08);
+  border: 1px solid rgba(23, 23, 23, 0.08);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.84);
-  color: rgba(17, 20, 18, 0.72);
-  box-shadow: 0 18px 44px rgba(43, 49, 45, 0.18);
+  color: rgba(23, 23, 23, 0.72);
+  box-shadow: 0 18px 44px rgba(25, 25, 25, 0.16);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
@@ -362,14 +356,14 @@ p {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(249, 250, 247, 0.72);
-  box-shadow: 0 8px 26px rgba(48, 54, 51, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 26px rgba(25, 25, 25, 0.07);
   backdrop-filter: blur(12px);
 }
 
 .session-pill {
   padding: 0 14px;
-  color: #303733;
+  color: #333333;
   font-size: 13px;
   font-weight: 700;
 }
@@ -393,7 +387,7 @@ p {
 .icon-button {
   width: 38px;
   height: 38px;
-  color: #1b201d;
+  color: #202020;
 }
 
 .icon-button.small {
@@ -427,7 +421,7 @@ p {
   width: 100%;
   margin: 0;
   break-inside: avoid;
-  border: 1px solid rgba(18, 24, 21, 0.08);
+  border: 1px solid rgba(23, 23, 23, 0.08);
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
@@ -446,9 +440,7 @@ p {
   min-height: 104px;
   align-content: space-between;
   gap: 14px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(0, 232, 181, 0.1)),
-    rgba(247, 253, 250, 0.92);
+  background: rgba(251, 251, 251, 0.96);
 }
 
 .upload-placeholder > * {
@@ -458,7 +450,7 @@ p {
 
 .upload-placeholder.status-error {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(139, 36, 29, 0.08)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(139, 36, 29, 0.06)),
     rgba(253, 248, 247, 0.92);
 }
 
@@ -467,15 +459,15 @@ p {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(17, 20, 18, 0.08);
+  background: rgba(23, 23, 23, 0.08);
 }
 
 .upload-progress-track span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--mint), var(--acid));
-  box-shadow: 0 0 18px rgba(0, 232, 181, 0.36);
+  background: linear-gradient(90deg, #757a80, var(--accent));
+  box-shadow: none;
   transition: width 220ms ease;
 }
 
@@ -494,19 +486,19 @@ p {
 }
 
 .tone-1 {
-  background: rgba(255, 255, 252, 0.92);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .tone-2 {
-  background: rgba(238, 255, 249, 0.9);
+  background: rgba(248, 248, 248, 0.95);
 }
 
 .tone-3 {
-  background: rgba(251, 255, 235, 0.93);
+  background: rgba(252, 252, 252, 0.95);
 }
 
 .tone-4 {
-  background: rgba(246, 249, 252, 0.92);
+  background: rgba(245, 246, 247, 0.95);
 }
 
 .asset-meta,
@@ -521,7 +513,7 @@ p {
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  color: #78817b;
+  color: #777b80;
   font-size: 11px;
   font-weight: 650;
   line-height: 1.2;
@@ -536,7 +528,7 @@ p {
 
 .asset-meta time {
   flex: 0 0 auto;
-  color: #8a928d;
+  color: #8a8e93;
   white-space: nowrap;
 }
 
@@ -547,9 +539,7 @@ p {
   place-items: center;
   overflow: hidden;
   border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(17, 20, 18, 0.04)),
-    #f4f5f1;
+  background: #f2f2f2;
 }
 
 .image-preview {
@@ -567,7 +557,7 @@ p {
 .asset-note,
 .text-preview {
   margin: 12px 0 0;
-  color: #3f4943;
+  color: #40444a;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -613,7 +603,7 @@ p {
 }
 
 .asset-footer small {
-  color: #707a74;
+  color: #73777b;
   font-size: 11px;
 }
 
@@ -622,8 +612,8 @@ p {
   height: 8px;
   flex: 0 0 8px;
   border-radius: 50%;
-  background: var(--mint);
-  box-shadow: 0 0 0 4px rgba(0, 232, 181, 0.18);
+  background: #8b9096;
+  box-shadow: 0 0 0 4px rgba(23, 23, 23, 0.06);
 }
 
 .card-actions {
@@ -634,7 +624,7 @@ p {
 .download-link {
   min-height: 32px;
   padding: 0 10px;
-  color: #111412;
+  color: #171717;
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
@@ -648,7 +638,7 @@ p {
 
 .upload-tile {
   padding: 12px;
-  background: rgba(237, 253, 249, 0.88);
+  background: rgba(250, 250, 250, 0.95);
 }
 
 .drop-zone {
@@ -656,11 +646,9 @@ p {
   min-height: 180px;
   place-items: center;
   padding: 18px;
-  border: 1px dashed rgba(19, 26, 22, 0.2);
+  border: 1px dashed rgba(23, 23, 23, 0.2);
   border-radius: 20px;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(0, 232, 181, 0.12)),
-    #effaf7;
+  background: #f5f5f5;
   cursor: pointer;
   text-align: center;
   transition:
@@ -674,7 +662,7 @@ p {
 }
 
 .drop-zone.dragging {
-  border-color: #111412;
+  border-color: #171717;
   transform: translateY(-2px);
 }
 
@@ -704,7 +692,7 @@ p {
   margin-top: 10px;
   padding: 11px;
   resize: vertical;
-  border: 1px solid rgba(19, 26, 22, 0.08);
+  border: 1px solid rgba(23, 23, 23, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.66);
 }
@@ -712,8 +700,8 @@ p {
 .text-upload-button {
   width: 100%;
   margin-top: 8px;
-  background: #111412;
-  color: #fbfcf8;
+  background: #171717;
+  color: #ffffff;
   font-size: 13px;
   font-weight: 800;
 }
@@ -730,8 +718,8 @@ p {
   padding: 10px 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.74);
-  color: #333b36;
-  box-shadow: 0 12px 36px rgba(55, 62, 58, 0.1);
+  color: #333333;
+  box-shadow: 0 12px 36px rgba(25, 25, 25, 0.09);
   font-size: 13px;
 }
 

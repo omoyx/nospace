@@ -208,6 +208,15 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Kept the `NoSpace` title and invite switcher unchanged.
   - `npm run build` passed after the change.
   - `git status --short` showed this milestone's `src/App.tsx` and task note changes plus a pre-existing `src/styles.css` modification.
+- Minimal gray visual refresh:
+  - Removed the page-level grid texture and decorative canvas gradients.
+  - Replaced green/mint accents with neutral gray controls, upload progress, drag state, and source dots.
+  - Kept the large rounded card style and softened surfaces to a gray/white palette.
+  - Verified with Playwright screenshots:
+    - `/tmp/nospace-minimal-gray-desktop.png`
+    - `/tmp/nospace-minimal-gray-mobile.png`
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 
 ## Mistakes
 
