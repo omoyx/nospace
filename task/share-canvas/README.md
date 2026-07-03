@@ -212,9 +212,13 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Removed the page-level grid texture and decorative canvas gradients.
   - Replaced green/mint accents with neutral gray controls, upload progress, drag state, and source dots.
   - Kept the large rounded card style and softened surfaces to a gray/white palette.
+  - Updated `AGENTS.md` so future key changes must be deployed and verified on the public online URL.
+  - Deployed to GitHub Pages and verified `https://omoyx.github.io/nospace/` returned `HTTP/2 200`.
+  - Verified production built CSS includes the gray palette and no longer includes the previous green/decorative background markers.
   - Verified with Playwright screenshots:
     - `/tmp/nospace-minimal-gray-desktop.png`
     - `/tmp/nospace-minimal-gray-mobile.png`
+    - `/tmp/nospace-production-gray-login.png`
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 
