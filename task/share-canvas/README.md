@@ -134,6 +134,12 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified with HAR capture over 75 seconds: `/api/assets` returned two 200 responses, initial load plus one automatic refresh.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Natural image preview height:
+  - Removed the fixed/minimum image preview height and gray image placeholder background.
+  - Image previews now render at card width with natural proportional height.
+  - Verified with screenshot `/tmp/nospace-image-natural-height.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.

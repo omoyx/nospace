@@ -442,16 +442,15 @@ p {
 }
 
 .image-preview {
-  min-height: 180px;
-  background: #dfe5e1;
+  display: block;
+  min-height: 0;
+  background: transparent;
 }
 
 .image-preview img {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 390px;
-  object-fit: cover;
 }
 
 .asset-note,
