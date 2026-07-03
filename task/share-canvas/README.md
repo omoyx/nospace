@@ -140,6 +140,14 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Verified with screenshot `/tmp/nospace-image-natural-height.png`.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Full-canvas drag upload:
+  - Removed the logged-in header subtitle `邀请访问的轻量内容交换画布`.
+  - Moved file drag/drop handling from the upload tile to the full `.canvas-board`.
+  - Added a board-level drag highlight while a file is over the canvas.
+  - Verified with an API-mocked Chromium page that the subtitle is absent, `.canvas-board.drop-active` appears on drag enter, and dropping `canvas-drop.txt` on `.canvas-board` adds the uploaded item.
+  - Captured screenshot `/tmp/nospace-full-canvas-drop.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.

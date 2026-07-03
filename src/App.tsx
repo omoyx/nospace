@@ -85,6 +85,10 @@ function displaySourceName(sourceName: string): string {
   return sourceName === "Anzi" || sourceName === "IP" ? "旧记录" : sourceName;
 }
 
+function isFileDrag(event: DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types).includes("Files");
+}
+
 function useAssetFeed(invite: string, hasSession: boolean) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -143,6 +147,7 @@ export function App() {
   const [actionError, setActionError] = useState("");
   const [deletingId, setDeletingId] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragDepthRef = useRef(0);
 
   const { assets, setAssets, loading, error, refresh } = useAssetFeed(invite, Boolean(session));
 
@@ -194,6 +199,9 @@ export function App() {
     );
   }, [assets, query, session]);
 
+  const canUpload = session?.role === "upload";
+  const hasRealAssets = session && visibleAssets.length > 0;
+
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await signIn(invite);
@@ -230,9 +238,43 @@ export function App() {
     await handleUploadFiles([file]);
   };
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+  const handleCanvasDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+
     event.preventDefault();
+    if (!canUpload) return;
+
+    dragDepthRef.current += 1;
+    setDragging(true);
+  };
+
+  const handleCanvasDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = canUpload ? "copy" : "none";
+  };
+
+  const handleCanvasDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event)) return;
+
+    event.preventDefault();
+    if (!canUpload) return;
+
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setDragging(false);
+    }
+  };
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    if (!isFileDrag(event) && event.dataTransfer.files.length === 0) return;
+
+    event.preventDefault();
+    dragDepthRef.current = 0;
     setDragging(false);
+    if (!canUpload) return;
+
     void handleUploadFiles(event.dataTransfer.files);
   };
 
@@ -263,9 +305,6 @@ export function App() {
       setDeletingId("");
     }
   };
-
-  const canUpload = session?.role === "upload";
-  const hasRealAssets = session && visibleAssets.length > 0;
 
   if (authRestoring) {
     return (
@@ -315,7 +354,6 @@ export function App() {
           </div>
           <div>
             <h1>NoSpace</h1>
-            <p>邀请访问的轻量内容交换画布</p>
           </div>
         </div>
 
@@ -339,7 +377,14 @@ export function App() {
 
       {authError && <div className="notice error">{authError}</div>}
 
-      <section className="canvas-board" aria-label="内容画布">
+      <section
+        className={dragging ? "canvas-board drop-active" : "canvas-board"}
+        aria-label="内容画布"
+        onDragEnter={handleCanvasDragEnter}
+        onDragOver={handleCanvasDragOver}
+        onDragLeave={handleCanvasDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="board-toolbar">
           <div className="session-pill">
             <ShieldCheck size={17} />
@@ -367,13 +412,6 @@ export function App() {
             <article className="upload-tile">
               <label
                 className={dragging ? "drop-zone dragging" : "drop-zone"}
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  setDragging(true);
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
               >
                 <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} />
                 <span className="upload-symbol">{uploading ? <Loader2 className="spin" /> : <Plus />}</span>
