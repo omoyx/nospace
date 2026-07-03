@@ -169,6 +169,11 @@ Build a minimal modern website for invite-gated upload and download across norma
 - Playwright screenshots captured for desktop and mobile:
   - `/tmp/nospace-desktop-v2.png`
   - `/tmp/nospace-mobile-v2.png`
+- Logged-in brand mark cleanup:
+  - Removed the circular `ns` mark from the logged-in top-left brand area.
+  - Kept the `NoSpace` title and invite switcher unchanged.
+  - `npm run build` passed after the change.
+  - `git status --short` showed this milestone's `src/App.tsx` and task note changes plus a pre-existing `src/styles.css` modification.
 
 ## Mistakes
 

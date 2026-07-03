@@ -349,9 +349,6 @@ export function App() {
     <main className="page-shell">
       <section className="top-strip" aria-label="访问控制">
         <div className="brand-block">
-          <div className="mark" aria-hidden="true">
-            ns
-          </div>
           <div>
             <h1>NoSpace</h1>
           </div>
