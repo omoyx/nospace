@@ -173,6 +173,13 @@ Build a minimal modern website for invite-gated upload and download across norma
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
   - `git status --short` showed only `src/App.tsx`, `src/api.ts`, and `src/styles.css` modified before adding this task note.
+- Progress-only upload placeholder:
+  - Removed the spinner/icon and shimmer treatment from upload placeholder cards.
+  - Kept the placeholder card to file name, status percentage, optional error text, and the progress bar.
+  - Verified with an API-mocked Chromium page that `.upload-placeholder` has no `.spin` and no `svg`, still has one `progressbar` with `aria-valuenow="8"` and `width: 8%`, then disappears when the real asset card appears.
+  - Captured screenshot `/tmp/nospace-progress-only-placeholder.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Drag overlay fade and icon:
   - Replaced the drag blur pseudo-element with a real `.drag-overlay` so it can fade out after drag leave/drop.
   - Added a minimal centered upload icon inside the canvas-only blur state.

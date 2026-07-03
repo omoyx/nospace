@@ -597,17 +597,7 @@ function UploadPlaceholderCard({ item }: { item: UploadPlaceholder }) {
         <span className="asset-name" title={item.name}>
           {item.name}
         </span>
-        <span>{statusLabel}</span>
-      </div>
-
-      <div className="upload-placeholder-body">
-        <span className="upload-placeholder-icon" aria-hidden="true">
-          {item.status === "error" ? <Upload size={20} /> : <Loader2 className="spin" size={20} />}
-        </span>
-        <div>
-          <strong>{`${progress}%`}</strong>
-          <small>{item.error || formatBytes(item.size)}</small>
-        </div>
+        <span>{`${statusLabel} · ${progress}%`}</span>
       </div>
 
       <div
@@ -620,6 +610,7 @@ function UploadPlaceholderCard({ item }: { item: UploadPlaceholder }) {
       >
         <span style={{ width: `${progress}%` }} />
       </div>
+      {item.error && <p className="upload-placeholder-error">{item.error}</p>}
     </article>
   );
 }

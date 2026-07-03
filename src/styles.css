@@ -443,24 +443,12 @@ p {
 
 .upload-placeholder {
   display: grid;
-  min-height: 154px;
+  min-height: 104px;
   align-content: space-between;
-  gap: 16px;
+  gap: 14px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(0, 232, 181, 0.1)),
     rgba(247, 253, 250, 0.92);
-}
-
-.upload-placeholder::after {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.52), transparent);
-  content: "";
-  opacity: 0.56;
-  transform: translateX(-100%);
-  animation: upload-card-sheen 1500ms ease-in-out infinite;
-  pointer-events: none;
 }
 
 .upload-placeholder > * {
@@ -472,50 +460,6 @@ p {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(139, 36, 29, 0.08)),
     rgba(253, 248, 247, 0.92);
-}
-
-.upload-placeholder.status-error::after {
-  display: none;
-}
-
-.upload-placeholder-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.upload-placeholder-icon {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.84);
-  color: #1b211e;
-  box-shadow: var(--sharp-shadow);
-}
-
-.upload-placeholder-body > div {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.upload-placeholder-body strong {
-  color: #111412;
-  font-size: 22px;
-  line-height: 1;
-}
-
-.upload-placeholder-body small {
-  overflow: hidden;
-  color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .upload-progress-track {
@@ -535,13 +479,18 @@ p {
   transition: width 220ms ease;
 }
 
-.upload-placeholder.status-error .upload-placeholder-icon {
-  color: #8b241d;
-}
-
 .upload-placeholder.status-error .upload-progress-track span {
   background: #8b241d;
   box-shadow: none;
+}
+
+.upload-placeholder-error {
+  overflow: hidden;
+  color: #8b241d;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tone-1 {
@@ -838,17 +787,6 @@ p {
   to {
     opacity: 0;
     transform: scale(1.01);
-  }
-}
-
-@keyframes upload-card-sheen {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  58%,
-  100% {
-    transform: translateX(100%);
   }
 }
 
