@@ -148,6 +148,13 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Captured screenshot `/tmp/nospace-full-canvas-drop.png`.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Global drag blur:
+  - Added a full-viewport glass blur layer while a file is dragged over the canvas.
+  - Kept the blur layer `pointer-events: none` so dropping anywhere on the canvas still works.
+  - Verified with an API-mocked Chromium page that `.canvas-board.drop-active::after` is fixed, uses `backdrop-filter: blur(10px)`, and dropping `blur-drop.txt` on `.canvas-board` adds the uploaded item.
+  - Captured screenshot `/tmp/nospace-global-drag-blur.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
