@@ -20,6 +20,17 @@ const inviteStorageKey = "nospace:invite";
 const sessionStorageKey = "nospace:session";
 const assetRefreshIntervalMs = 60_000;
 
+type UploadPlaceholderStatus = "waiting" | "uploading" | "processing" | "error";
+
+type UploadPlaceholder = {
+  id: string;
+  name: string;
+  size: number;
+  progress: number;
+  status: UploadPlaceholderStatus;
+  error?: string;
+};
+
 function savedInvite(): string {
   if (typeof window === "undefined") return defaultInvite;
   return window.localStorage.getItem(inviteStorageKey) || defaultInvite;
@@ -85,6 +96,17 @@ function displaySourceName(sourceName: string): string {
   return sourceName === "Anzi" || sourceName === "IP" ? "旧记录" : sourceName;
 }
 
+function uploadPlaceholderId(file: File, index: number): string {
+  return `upload-${Date.now()}-${index}-${file.name}`;
+}
+
+function uploadStatusLabel(status: UploadPlaceholderStatus): string {
+  if (status === "waiting") return "等待中";
+  if (status === "processing") return "处理中";
+  if (status === "error") return "失败";
+  return "上传中";
+}
+
 function isFileDrag(event: DragEvent<HTMLElement>): boolean {
   return Array.from(event.dataTransfer.types).includes("Files");
 }
@@ -143,6 +165,7 @@ export function App() {
   const [note, setNote] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadItems, setUploadItems] = useState<UploadPlaceholder[]>([]);
   const [uploadError, setUploadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [deletingId, setDeletingId] = useState("");
@@ -201,6 +224,7 @@ export function App() {
 
   const canUpload = session?.role === "upload";
   const hasRealAssets = session && visibleAssets.length > 0;
+  const hasVisibleContent = hasRealAssets || uploadItems.length > 0;
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -213,17 +237,77 @@ export function App() {
     const queue = Array.from(files);
     if (queue.length === 0) return;
 
+    const batch = queue.map((file, index) => ({
+      file,
+      placeholder: {
+        id: uploadPlaceholderId(file, index),
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        status: "waiting" as const,
+      },
+    }));
+    const batchIds = new Set(batch.map(({ placeholder }) => placeholder.id));
+    const failedIds = new Set<string>();
+    const noteForUpload = note;
+
     setUploading(true);
     setUploadError("");
+    setUploadItems((current) => [...batch.map(({ placeholder }) => placeholder), ...current.filter((item) => item.status !== "error")]);
     try {
       const uploaded: Asset[] = [];
-      for (const file of queue) {
-        uploaded.push(await uploadAsset(invite, file, note));
+      for (const { file, placeholder } of batch) {
+        setUploadItems((current) =>
+          current.map((item) =>
+            item.id === placeholder.id ? { ...item, status: "uploading", progress: Math.max(item.progress, 8) } : item,
+          ),
+        );
+
+        try {
+          const asset = await uploadAsset(invite, file, noteForUpload, (progress) => {
+            setUploadItems((current) =>
+              current.map((item) =>
+                item.id === placeholder.id
+                  ? {
+                      ...item,
+                      progress,
+                      status: progress >= 96 ? "processing" : "uploading",
+                    }
+                  : item,
+              ),
+            );
+          });
+
+          uploaded.push(asset);
+          setUploadItems((current) =>
+            current.map((item) => (item.id === placeholder.id ? { ...item, status: "processing", progress: 100 } : item)),
+          );
+        } catch (error) {
+          failedIds.add(placeholder.id);
+          const message = error instanceof Error ? error.message : "上传失败";
+          setUploadError(message);
+          setUploadItems((current) =>
+            current.map((item) =>
+              item.id === placeholder.id ? { ...item, status: "error", error: message, progress: Math.max(item.progress, 8) } : item,
+            ),
+          );
+        }
       }
-      setAssets((current) => [...uploaded, ...current]);
-      setNote("");
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "上传失败");
+
+      if (uploaded.length > 0) {
+        setAssets((current) => [...uploaded, ...current]);
+        setNote("");
+      }
+
+      setUploadItems((current) =>
+        current.filter((item) => !batchIds.has(item.id) || failedIds.has(item.id)),
+      );
+
+      if (failedIds.size > 0) {
+        window.setTimeout(() => {
+          setUploadItems((current) => current.filter((item) => !failedIds.has(item.id)));
+        }, 7000);
+      }
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -428,6 +512,9 @@ export function App() {
               {uploadError && <p className="tile-error">{uploadError}</p>}
             </article>
           )}
+          {uploadItems.map((item) => (
+            <UploadPlaceholderCard key={item.id} item={item} />
+          ))}
           {visibleAssets.map((asset, index) => (
             <AssetCard
               key={asset.id}
@@ -442,7 +529,7 @@ export function App() {
           ))}
         </div>
 
-        {!loading && !hasRealAssets && (
+        {!loading && !hasVisibleContent && (
           <div className="empty-state">
             <Upload size={20} />
             <p>{canUpload ? "还没有内容，先把第一份文件放上来。" : "这里还没有可下载内容。"}</p>
@@ -454,6 +541,43 @@ export function App() {
 
       </section>
     </main>
+  );
+}
+
+function UploadPlaceholderCard({ item }: { item: UploadPlaceholder }) {
+  const progress = Math.min(100, Math.max(0, item.progress));
+  const statusLabel = uploadStatusLabel(item.status);
+
+  return (
+    <article className={`upload-placeholder status-${item.status}`} aria-label={`${item.name} ${statusLabel}`}>
+      <div className="asset-meta">
+        <span className="asset-name" title={item.name}>
+          {item.name}
+        </span>
+        <span>{statusLabel}</span>
+      </div>
+
+      <div className="upload-placeholder-body">
+        <span className="upload-placeholder-icon" aria-hidden="true">
+          {item.status === "error" ? <Upload size={20} /> : <Loader2 className="spin" size={20} />}
+        </span>
+        <div>
+          <strong>{`${progress}%`}</strong>
+          <small>{item.error || formatBytes(item.size)}</small>
+        </div>
+      </div>
+
+      <div
+        className="upload-progress-track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+        aria-label={`${item.name} 上传进度`}
+      >
+        <span style={{ width: `${progress}%` }} />
+      </div>
+    </article>
   );
 }
 

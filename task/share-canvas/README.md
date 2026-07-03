@@ -163,6 +163,16 @@ Build a minimal modern website for invite-gated upload and download across norma
   - Captured screenshot `/tmp/nospace-strong-canvas-drag-blur.png`.
   - `npm run lint` passed after the change.
   - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+- Upload placeholder progress:
+  - Switched the upload API client from `fetch` to `XMLHttpRequest` for file uploads so upload progress can be reported.
+  - Added temporary upload placeholder cards in the masonry grid with file name, size, status, and a progress bar.
+  - Placeholders begin at 8%, cap transfer progress at 96% while the backend is processing, then disappear when the real asset card is inserted.
+  - Failed uploads show an error placeholder briefly and keep the existing upload error message.
+  - Verified with an API-mocked Chromium page that dropping `placeholder-progress.txt` shows one `.upload-placeholder` with `aria-valuenow="8"` and `width: 8%`, then replaces it with the uploaded asset card after the delayed response.
+  - Captured screenshot `/tmp/nospace-upload-placeholder-progress.png`.
+  - `npm run lint` passed after the change.
+  - `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space npm run build` passed after the change.
+  - `git status --short` showed only `src/App.tsx`, `src/api.ts`, and `src/styles.css` modified before adding this task note.
 - Widescreen and persisted invite session:
   - Expanded the desktop shell from 1180px to a widescreen layout up to 1920px.
   - Increased masonry columns to 5 by default and 6 on very wide screens.
