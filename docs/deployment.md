@@ -28,7 +28,7 @@ INVITES=upload-code:upload:Uploader,read-code:download:Office
 ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
 DATASET_REPO_ID=mannycooper/nospace-data
-MAX_UPLOAD_MB=80
+MAX_UPLOAD_MB=200
 ```
 
 Production invite values are access credentials. Keep the real values in the Space `INVITES` secret/variable and do not commit them to the repository.
@@ -50,7 +50,7 @@ Build with:
 ```text
 VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space
 VITE_DEFAULT_INVITE=
-VITE_MAX_UPLOAD_MB=80
+VITE_MAX_UPLOAD_MB=200
 ```
 
 Then publish `dist/` through GitHub Pages.
@@ -70,7 +70,7 @@ Create `.env.local` for local development:
 ```text
 VITE_API_BASE_URL=http://127.0.0.1:7860
 VITE_DEFAULT_INVITE=upload-demo
-VITE_MAX_UPLOAD_MB=80
+VITE_MAX_UPLOAD_MB=200
 ```
 
 ## Local run

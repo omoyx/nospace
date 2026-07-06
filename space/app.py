@@ -4,6 +4,7 @@ import json
 import mimetypes
 import os
 import secrets
+import tempfile
 import time
 from io import BytesIO
 from pathlib import Path
@@ -20,8 +21,9 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 DATASET_REPO_ID = os.getenv("DATASET_REPO_ID", "").strip()
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
 INDEX_PATH = "index.json"
-MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "80"))
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 MULTIPART_EARLY_REJECT_OVERHEAD_BYTES = 1024 * 1024
 
 
@@ -74,6 +76,30 @@ def add_cors_origin(request: Request, response: JSONResponse) -> JSONResponse:
     elif origin in ALLOWED_ORIGINS:
         response.headers["access-control-allow-origin"] = origin
     return response
+
+
+async def spool_upload_to_temp_file(file: UploadFile) -> tuple[Path, int, str]:
+    hasher = hashlib.sha256()
+    size = 0
+    temp_file = tempfile.NamedTemporaryFile(prefix="nospace-upload-", suffix=".tmp", delete=False)
+    temp_path = Path(temp_file.name)
+
+    try:
+        with temp_file:
+            while True:
+                chunk = await file.read(UPLOAD_READ_CHUNK_BYTES)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail=upload_too_large_error()["detail"])
+                hasher.update(chunk)
+                temp_file.write(chunk)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+    return temp_path, size, hasher.hexdigest()
 
 
 @app.middleware("http")
@@ -264,43 +290,47 @@ async def create_asset(
     if session["role"] != "upload":
         raise HTTPException(status_code=403, detail="当前邀请码没有上传权限")
 
-    content = await file.read()
-    size = len(content)
-    if size > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=upload_too_large_error()["detail"])
+    ensure_dataset()
+    temp_path: Path | None = None
 
-    original_name = Path(file.filename or "upload.bin").name
-    suffix = Path(original_name).suffix
-    digest = hashlib.sha256(content + secrets.token_bytes(8)).hexdigest()[:18]
-    item_id = f"{int(time.time())}-{digest}"
-    stored_name = f"{item_id}{suffix}"
-    path_in_repo = f"files/{stored_name}"
+    try:
+        temp_path, size, content_hash = await spool_upload_to_temp_file(file)
+        original_name = Path(file.filename or "upload.bin").name
+        suffix = Path(original_name).suffix
+        digest = hashlib.sha256(f"{content_hash}:{secrets.token_hex(8)}".encode("utf-8")).hexdigest()[:18]
+        item_id = f"{int(time.time())}-{digest}"
+        stored_name = f"{item_id}{suffix}"
+        path_in_repo = f"files/{stored_name}"
 
-    mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
-    hf_api.upload_file(
-        repo_id=DATASET_REPO_ID,
-        repo_type="dataset",
-        path_in_repo=path_in_repo,
-        path_or_fileobj=BytesIO(content),
-        commit_message=f"Upload {original_name}",
-    )
+        mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+        hf_api.upload_file(
+            repo_id=DATASET_REPO_ID,
+            repo_type="dataset",
+            path_in_repo=path_in_repo,
+            path_or_fileobj=temp_path,
+            commit_message=f"Upload {original_name}",
+        )
 
-    item = {
-        "id": item_id,
-        "filename": stored_name,
-        "path": path_in_repo,
-        "originalName": original_name,
-        "mimeType": mime_type,
-        "size": size,
-        "uploadedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "sourceName": client_ip(request),
-        "note": note[:400],
-    }
+        item = {
+            "id": item_id,
+            "filename": stored_name,
+            "path": path_in_repo,
+            "originalName": original_name,
+            "mimeType": mime_type,
+            "size": size,
+            "uploadedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "sourceName": client_ip(request),
+            "note": note[:400],
+        }
 
-    items = load_index()
-    items.append(item)
-    save_index(items)
-    return public_item(item)
+        items = load_index()
+        items.append(item)
+        save_index(items)
+        return public_item(item)
+    finally:
+        if temp_path:
+            temp_path.unlink(missing_ok=True)
+        await file.close()
 
 
 @app.delete("/api/assets/{item_id}")

@@ -34,7 +34,7 @@ INVITES='upload-demo:upload:Uploader,read-demo:download:Office' \
 ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 DATASET_REPO_ID='mannycooper/nospace-data' \
 HF_TOKEN='<token with dataset write access>' \
-MAX_UPLOAD_MB=80 \
+MAX_UPLOAD_MB=200 \
 ../.venv/bin/uvicorn app:app --host 127.0.0.1 --port 7860
 ```
 
@@ -43,7 +43,7 @@ Run the frontend:
 ```bash
 VITE_API_BASE_URL=http://127.0.0.1:7860 \
 VITE_DEFAULT_INVITE=upload-demo \
-VITE_MAX_UPLOAD_MB=80 \
+VITE_MAX_UPLOAD_MB=200 \
 npm run dev
 ```
 

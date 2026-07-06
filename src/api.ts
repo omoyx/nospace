@@ -1,11 +1,11 @@
 import type { Asset, Session } from "./types";
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
-const configuredMaxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_MB ?? 80);
+const configuredMaxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_MB ?? 200);
 
 export const apiBaseUrl =
   configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl : import.meta.env.DEV ? "http://127.0.0.1:7860" : "";
-export const maxUploadMb = Number.isFinite(configuredMaxUploadMb) && configuredMaxUploadMb > 0 ? configuredMaxUploadMb : 80;
+export const maxUploadMb = Number.isFinite(configuredMaxUploadMb) && configuredMaxUploadMb > 0 ? configuredMaxUploadMb : 200;
 export const maxUploadBytes = maxUploadMb * 1024 * 1024;
 
 type ApiErrorBody = {
