@@ -12,7 +12,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { assetDownloadUrl, assetFileUrl, deleteAsset, listAssets, uploadAsset, verifyInvite } from "./api";
+import { assetDownloadUrl, assetFileUrl, deleteAsset, listAssets, maxUploadBytes, maxUploadMb, uploadAsset, verifyInvite } from "./api";
 import type { Asset, AssetKind, Session } from "./types";
 
 const defaultInvite = import.meta.env.VITE_DEFAULT_INVITE ?? "";
@@ -105,6 +105,15 @@ function uploadStatusLabel(status: UploadPlaceholderStatus): string {
   if (status === "processing") return "处理中";
   if (status === "error") return "失败";
   return "上传中";
+}
+
+function uploadLimitError(file: File): string {
+  return `${file.name} 是 ${formatBytes(file.size)}，超过 ${maxUploadMb} MB 上限`;
+}
+
+function batchUploadLimitError(files: File[]): string {
+  if (files.length === 1) return `${uploadLimitError(files[0])}，请压缩或拆分后再上传。`;
+  return `${files.length} 个文件超过 ${maxUploadMb} MB 上限，已跳过。`;
 }
 
 function isFileDrag(event: DragEvent<HTMLElement>): boolean {
@@ -273,7 +282,7 @@ export function App() {
     const queue = Array.from(files);
     if (queue.length === 0) return;
 
-    const batch = queue.map((file, index) => ({
+    const queuedItems = queue.map((file, index) => ({
       file,
       placeholder: {
         id: uploadPlaceholderId(file, index),
@@ -283,13 +292,43 @@ export function App() {
         status: "waiting" as const,
       },
     }));
+    const rejectedBatch = queuedItems.map(({ file, placeholder }) => ({
+      file,
+      placeholder: {
+        ...placeholder,
+        status: "error" as const,
+        error: uploadLimitError(file),
+      },
+    })).filter(({ file }) => file.size > maxUploadBytes);
+    const batch = queuedItems.filter(({ file }) => file.size <= maxUploadBytes);
+    const rejectedIds = new Set(rejectedBatch.map(({ placeholder }) => placeholder.id));
+
+    if (rejectedBatch.length > 0) {
+      setUploadError(batchUploadLimitError(rejectedBatch.map(({ file }) => file)));
+      setUploadItems((current) => [
+        ...rejectedBatch.map(({ placeholder }) => placeholder),
+        ...current.filter((item) => item.status !== "error"),
+      ]);
+      window.setTimeout(() => {
+        setUploadItems((current) => current.filter((item) => !rejectedIds.has(item.id)));
+      }, 7000);
+    }
+
+    if (batch.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     const batchIds = new Set(batch.map(({ placeholder }) => placeholder.id));
     const failedIds = new Set<string>();
     const noteForUpload = note;
 
     setUploading(true);
-    setUploadError("");
-    setUploadItems((current) => [...batch.map(({ placeholder }) => placeholder), ...current.filter((item) => item.status !== "error")]);
+    if (rejectedBatch.length === 0) setUploadError("");
+    setUploadItems((current) => [
+      ...batch.map(({ placeholder }) => placeholder),
+      ...current.filter((item) => item.status !== "error" || rejectedIds.has(item.id)),
+    ]);
     try {
       const uploaded: Asset[] = [];
       for (const { file, placeholder } of batch) {
@@ -540,7 +579,7 @@ export function App() {
                 <input ref={fileInputRef} type="file" multiple onChange={handleFileChange} />
                 <span className="upload-symbol">{uploading ? <Loader2 className="spin" /> : <Plus />}</span>
                 <strong>{uploading ? "上传中" : "拖入或选择文件"}</strong>
-                <small>图片、文本、PDF、压缩包都可以</small>
+                <small>{`单个文件不超过 ${maxUploadMb} MB`}</small>
               </label>
               <textarea
                 value={note}

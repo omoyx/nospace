@@ -50,11 +50,14 @@ Build with:
 ```text
 VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space
 VITE_DEFAULT_INVITE=
+VITE_MAX_UPLOAD_MB=80
 ```
 
 Then publish `dist/` through GitHub Pages.
 
 The current GitHub Actions workflow publishes on pushes to `main`.
+
+Keep frontend `VITE_MAX_UPLOAD_MB` aligned with the Space `MAX_UPLOAD_MB` variable. The frontend uses it to reject oversized files before upload, while the backend remains the final enforcement point.
 
 ## Network note
 
@@ -67,6 +70,7 @@ Create `.env.local` for local development:
 ```text
 VITE_API_BASE_URL=http://127.0.0.1:7860
 VITE_DEFAULT_INVITE=upload-demo
+VITE_MAX_UPLOAD_MB=80
 ```
 
 ## Local run

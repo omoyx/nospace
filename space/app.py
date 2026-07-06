@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, hf_hub_download
 from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
 from pydantic import BaseModel
@@ -21,6 +21,8 @@ DATASET_REPO_ID = os.getenv("DATASET_REPO_ID", "").strip()
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
 INDEX_PATH = "index.json"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "80"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+MULTIPART_EARLY_REJECT_OVERHEAD_BYTES = 1024 * 1024
 
 
 def parse_invites(raw: str) -> dict[str, dict[str, str]]:
@@ -57,6 +59,37 @@ hf_api = HfApi(token=HF_TOKEN)
 
 class InviteBody(BaseModel):
     invite: str
+
+
+def upload_too_large_error() -> dict[str, str]:
+    return {"detail": f"文件超过 {MAX_UPLOAD_MB} MB"}
+
+
+def add_cors_origin(request: Request, response: JSONResponse) -> JSONResponse:
+    origin = request.headers.get("origin")
+    if not origin:
+        return response
+    if "*" in ALLOWED_ORIGINS:
+        response.headers["access-control-allow-origin"] = "*"
+    elif origin in ALLOWED_ORIGINS:
+        response.headers["access-control-allow-origin"] = origin
+    return response
+
+
+@app.middleware("http")
+async def reject_oversized_upload_request(request: Request, call_next):
+    if request.method == "POST" and request.url.path == "/api/assets":
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                request_size = int(content_length)
+            except ValueError:
+                request_size = 0
+            if request_size > MAX_UPLOAD_BYTES + MULTIPART_EARLY_REJECT_OVERHEAD_BYTES:
+                response = JSONResponse(status_code=413, content=upload_too_large_error())
+                return add_cors_origin(request, response)
+
+    return await call_next(request)
 
 
 def clean_ip(value: str) -> str:
@@ -233,8 +266,8 @@ async def create_asset(
 
     content = await file.read()
     size = len(content)
-    if size > MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"文件超过 {MAX_UPLOAD_MB} MB")
+    if size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=upload_too_large_error()["detail"])
 
     original_name = Path(file.filename or "upload.bin").name
     suffix = Path(original_name).suffix
