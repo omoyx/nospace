@@ -406,12 +406,24 @@ p {
 }
 
 .masonry {
+  --tile-min: 245px;
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tile-min, 245px)), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--tile-min)), 1fr));
   gap: 18px;
   align-items: start;
+}
+
+.masonry.is-packed {
+  display: block;
+}
+
+.masonry.is-packed > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform 180ms ease;
 }
 
 .asset-card,
@@ -520,10 +532,22 @@ p {
 }
 
 .asset-name {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.asset-name-base {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.asset-name-extension {
+  flex: 0 0 auto;
 }
 
 .asset-meta time {

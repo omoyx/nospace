@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   Copy,
@@ -105,6 +105,94 @@ function uploadStatusLabel(status: UploadPlaceholderStatus): string {
   if (status === "processing") return "处理中";
   if (status === "error") return "失败";
   return "上传中";
+}
+
+function splitFileName(name: string): { base: string; extension: string } {
+  const extensionStart = name.lastIndexOf(".");
+  if (extensionStart <= 0 || extensionStart === name.length - 1) {
+    return { base: name, extension: "" };
+  }
+
+  return {
+    base: name.slice(0, extensionStart),
+    extension: name.slice(extensionStart),
+  };
+}
+
+function FileName({ name }: { name: string }) {
+  const { base, extension } = splitFileName(name);
+
+  return (
+    <span className="asset-name" title={name}>
+      <span className="asset-name-base">{base}</span>
+      {extension && <span className="asset-name-extension">{extension}</span>}
+    </span>
+  );
+}
+
+function Masonry({ children }: { children: ReactNode }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let frameId = 0;
+
+    const layout = () => {
+      const items = Array.from(container.children) as HTMLElement[];
+      const width = container.clientWidth;
+      if (width === 0) return;
+
+      const styles = window.getComputedStyle(container);
+      const gap = Number.parseFloat(styles.columnGap) || 0;
+      const tileMinValue = styles.getPropertyValue("--tile-min").trim();
+      const parsedTileMin = Number.parseFloat(tileMinValue) || width;
+      const tileMin = tileMinValue.endsWith("%") ? width * (parsedTileMin / 100) : parsedTileMin;
+      const columnCount = Math.max(1, Math.floor((width + gap) / (tileMin + gap)));
+      const itemWidth = (width - gap * (columnCount - 1)) / columnCount;
+      const columnHeights = Array<number>(columnCount).fill(0);
+
+      container.classList.add("is-packed");
+      items.forEach((item) => {
+        item.style.width = `${itemWidth}px`;
+      });
+
+      items.forEach((item) => {
+        const shortestColumn = columnHeights.indexOf(Math.min(...columnHeights));
+        const x = shortestColumn * (itemWidth + gap);
+        const y = columnHeights[shortestColumn];
+
+        item.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        columnHeights[shortestColumn] = y + item.offsetHeight + gap;
+      });
+
+      const height = Math.max(0, ...columnHeights) - (items.length > 0 ? gap : 0);
+      container.style.height = `${height}px`;
+    };
+
+    const scheduleLayout = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(layout);
+    };
+
+    layout();
+
+    const observer = new ResizeObserver(scheduleLayout);
+    observer.observe(container);
+    Array.from(container.children).forEach((item) => observer.observe(item));
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
+  }, [children]);
+
+  return (
+    <div className="masonry" ref={containerRef}>
+      {children}
+    </div>
+  );
 }
 
 function uploadLimitError(file: File): string {
@@ -570,7 +658,7 @@ export function App() {
           </div>
         </div>
 
-        <div className="masonry">
+        <Masonry>
           {canUpload && (
             <article className="upload-tile">
               <label
@@ -609,7 +697,7 @@ export function App() {
               onDelete={() => void handleDeleteAsset(asset)}
             />
           ))}
-        </div>
+        </Masonry>
 
         {!loading && !hasVisibleContent && (
           <div className="empty-state">
@@ -633,9 +721,7 @@ function UploadPlaceholderCard({ item }: { item: UploadPlaceholder }) {
   return (
     <article className={`upload-placeholder status-${item.status}`} aria-label={`${item.name} ${statusLabel}`}>
       <div className="asset-meta">
-        <span className="asset-name" title={item.name}>
-          {item.name}
-        </span>
+        <FileName name={item.name} />
         <span>{`${statusLabel} · ${progress}%`}</span>
       </div>
 
@@ -681,9 +767,7 @@ function AssetCard({
   return (
     <article className={toneClass}>
       <div className="asset-meta">
-        <span className="asset-name" title={asset.originalName}>
-          {asset.originalName}
-        </span>
+        <FileName name={asset.originalName} />
         <time dateTime={asset.uploadedAt}>{formatTime(asset.uploadedAt)}</time>
       </div>
 
