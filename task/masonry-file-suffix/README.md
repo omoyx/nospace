@@ -33,6 +33,19 @@
 - The standalone Playwright skill wrapper could not run because its internal `playwright-cli` command was unavailable even though `npx` exists. The installed in-app browser automation completed the responsive checks instead.
 - `git diff --check` passed.
 
+## Production
+
+- Committed the implementation as `f7af57a Pack cards and preserve file suffixes`.
+- Pushed `main` to GitHub.
+- GitHub Pages workflow run `29238821676` completed successfully:
+  - `https://github.com/omoyx/nospace/actions/runs/29238821676`
+- Verified `https://omoyx.github.io/nospace/?release=f7af57a` returned `HTTP/2 200`.
+- Verified the public HTML references this release's assets:
+  - `/nospace/assets/index-CzYwEOWW.js`
+  - `/nospace/assets/index-BTAExjn6.css`
+- Verified the public JavaScript contains `ResizeObserver`, `translate3d`, and `--tile-min`.
+- Verified the public CSS contains `.masonry.is-packed`, `.asset-name-base`, and `.asset-name-extension`.
+
 ## Mistakes
 
 - Updated `mistake/css-columns-zoom-hidden-cards.md`; no new recurring issue found.
