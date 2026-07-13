@@ -11,6 +11,8 @@ export type Asset = {
   id: string;
   filename: string;
   originalName: string;
+  displayName?: string;
+  renameModel?: string;
   mimeType: string;
   size: number;
   uploadedAt: string;

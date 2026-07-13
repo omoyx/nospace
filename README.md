@@ -35,6 +35,9 @@ ALLOWED_ORIGINS='http://127.0.0.1:5173' \
 DATASET_REPO_ID='mannycooper/nospace-data' \
 HF_TOKEN='<token with dataset write access>' \
 MAX_UPLOAD_MB=200 \
+BAILIAN_OPENCODE_BASE_URL='<OpenAI-compatible endpoint>' \
+BAILIAN_OPENCODE_API_KEY='<GLM credential>' \
+BAILIAN_OPENCODE_MODEL='glm-5.2' \
 ../.venv/bin/uvicorn app:app --host 127.0.0.1 --port 7860
 ```
 
@@ -68,6 +71,8 @@ Current backend:
 ```text
 https://mannycooper-nospace-storage.hf.space
 ```
+
+When GLM 5.2 credentials are configured on the backend, suspicious mojibake filenames are repaired before the asset is added to the feed. The original upload name remains in metadata, while the repaired name is used for display and downloads. Normal filenames do not call the model.
 
 For GitHub Pages:
 

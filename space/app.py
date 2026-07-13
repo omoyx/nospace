@@ -1,14 +1,21 @@
+import asyncio
 import hashlib
 import ipaddress
 import json
+import logging
 import mimetypes
 import os
+import re
 import secrets
 import tempfile
 import time
+import unicodedata
+import urllib.error
+import urllib.request
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +32,22 @@ MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 MULTIPART_EARLY_REJECT_OVERHEAD_BYTES = 1024 * 1024
+SMART_FILENAME_BASE_URL = os.getenv("BAILIAN_OPENCODE_BASE_URL", "").strip()
+SMART_FILENAME_API_KEY = os.getenv("BAILIAN_OPENCODE_API_KEY", "").strip()
+SMART_FILENAME_MODEL = os.getenv("BAILIAN_OPENCODE_MODEL", "glm-5.2").strip() or "glm-5.2"
+SMART_FILENAME_TIMEOUT_SECONDS = int(os.getenv("SMART_FILENAME_TIMEOUT_SECONDS", "30"))
+SMART_FILENAME_MAX_TOKENS = int(os.getenv("SMART_FILENAME_MAX_TOKENS", "120"))
+
+logger = logging.getLogger("nospace")
+MOJIBAKE_MARKERS = frozenset("ÃÂâæçåèäðÐÑ¤¦¬¯µ•™œž")
+ENCODING_REPAIR_PAIRS = (
+    ("latin-1", "utf-8"),
+    ("cp1252", "utf-8"),
+    ("cp437", "utf-8"),
+    ("cp437", "gb18030"),
+    ("latin-1", "gb18030"),
+    ("gb18030", "utf-8"),
+)
 
 
 def parse_invites(raw: str) -> dict[str, dict[str, str]]:
@@ -100,6 +123,203 @@ async def spool_upload_to_temp_file(file: UploadFile) -> tuple[Path, int, str]:
         raise
 
     return temp_path, size, hasher.hexdigest()
+
+
+def safe_upload_name(filename: str | None) -> str:
+    normalized = (filename or "upload.bin").replace("\\", "/")
+    return Path(normalized).name or "upload.bin"
+
+
+def filename_repair_candidates(filename: str) -> list[str]:
+    candidates: list[str] = []
+
+    def add(candidate: str) -> None:
+        candidate = unicodedata.normalize("NFC", candidate).strip()
+        if candidate and candidate != filename and candidate not in candidates:
+            candidates.append(candidate)
+
+    if re.search(r"(?:%[0-9a-fA-F]{2}){2,}", filename):
+        add(unquote(filename))
+
+    for source_encoding, target_encoding in ENCODING_REPAIR_PAIRS:
+        try:
+            add(filename.encode(source_encoding).decode(target_encoding))
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+
+    return candidates
+
+
+def filename_garbled_score(filename: str) -> int:
+    stem = Path(filename).stem or filename
+    score = stem.count("\ufffd") * 6
+    score += len(re.findall(r"(?:%[0-9a-fA-F]{2})", stem))
+    score += max(0, stem.count("?") - 1) * 2
+    score += sum(character in MOJIBAKE_MARKERS for character in stem)
+    score += sum("\u2500" <= character <= "\u259f" for character in stem) * 2
+    score += sum(unicodedata.category(character) in {"Cc", "Cs", "Co", "Cn"} for character in stem) * 4
+    return score
+
+
+def is_garbled_filename(filename: str) -> bool:
+    score = filename_garbled_score(filename)
+    if score >= 4:
+        return True
+
+    for candidate in filename_repair_candidates(filename):
+        has_cjk = bool(re.search(r"[\u3400-\u9fff]", candidate))
+        if has_cjk and filename_garbled_score(candidate) < score:
+            return True
+    return False
+
+
+def filename_rename_endpoint(base_url: str) -> str:
+    value = base_url.rstrip("/")
+    if value.endswith("/chat/completions"):
+        return value
+    if value.endswith("/v1"):
+        return value + "/chat/completions"
+    return value + "/v1/chat/completions"
+
+
+def call_glm_filename_rename(filename: str, mime_type: str, repair_candidates: list[str]) -> str:
+    extension = Path(filename).suffix
+    input_payload = {
+        "originalFilename": filename,
+        "extension": extension,
+        "mimeType": mime_type,
+        "encodingRepairCandidates": repair_candidates,
+    }
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是文件名乱码恢复助手。根据原文件名和可逆编码候选，恢复最可信、简洁、自然的文件名。"
+                "优先采用可信的编码恢复结果，不翻译正常的品牌、产品名或人名，不虚构文件内容。"
+                "若原意无法恢复，使用与 MIME 类型对应的简洁中文通用名。"
+                "必须保留给定扩展名，禁止路径、控制字符和说明文字。"
+                "只输出合法 JSON，格式为 {\"filename\":\"文件名.ext\"}。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(input_payload, ensure_ascii=False),
+        },
+    ]
+    payload = {
+        "model": SMART_FILENAME_MODEL,
+        "messages": messages,
+        "temperature": 0,
+        "max_completion_tokens": SMART_FILENAME_MAX_TOKENS,
+        "enable_thinking": False,
+    }
+    request = urllib.request.Request(
+        filename_rename_endpoint(SMART_FILENAME_BASE_URL),
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {SMART_FILENAME_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=SMART_FILENAME_TIMEOUT_SECONDS) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"GLM filename rename returned HTTP {error.code}") from error
+
+    content = data.get("choices", [{}])[0].get("message", {}).get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("GLM filename rename returned an empty response")
+    return content
+
+
+def parsed_glm_filename(content: str) -> str | None:
+    value = content.strip()
+    if value.startswith("```"):
+        value = re.sub(r"^```(?:json)?\s*|\s*```$", "", value, flags=re.IGNORECASE)
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", value, flags=re.DOTALL)
+        if not match:
+            return None
+        try:
+            payload = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    filename = payload.get("filename") if isinstance(payload, dict) else None
+    return filename if isinstance(filename, str) else None
+
+
+def sanitized_display_filename(candidate: str, original_filename: str) -> str | None:
+    value = unicodedata.normalize("NFKC", candidate)
+    value = "".join(character for character in value if unicodedata.category(character) not in {"Cc", "Cs"})
+    value = value.replace("/", "-").replace("\\", "-")
+    value = re.sub(r"\s+", " ", value).strip(" .-\"'`")
+    original_extension = Path(original_filename).suffix
+
+    if original_extension:
+        if value.lower().endswith(original_extension.lower()):
+            base = value[: -len(original_extension)]
+        else:
+            candidate_extension = Path(value).suffix
+            base = value[: -len(candidate_extension)] if candidate_extension else value
+        base = base.strip(" .-\"'`")
+        value = f"{base}{original_extension}"
+
+    if not value or value in {".", ".."}:
+        return None
+
+    if len(value) > 160:
+        if original_extension:
+            base_limit = max(1, 160 - len(original_extension))
+            value = f"{value[: -len(original_extension)][:base_limit].rstrip()}{original_extension}"
+        else:
+            value = value[:160].rstrip()
+
+    if value == original_filename or is_garbled_filename(value):
+        return None
+    return value
+
+
+def deterministic_filename_repair(filename: str) -> str | None:
+    ranked_candidates = sorted(
+        filename_repair_candidates(filename),
+        key=lambda candidate: (filename_garbled_score(candidate), len(candidate)),
+    )
+    for candidate in ranked_candidates:
+        sanitized = sanitized_display_filename(candidate, filename)
+        if sanitized:
+            return sanitized
+    return None
+
+
+async def smart_display_filename(filename: str, mime_type: str) -> tuple[str, str | None]:
+    if not is_garbled_filename(filename):
+        return filename, None
+
+    repair_candidates = filename_repair_candidates(filename)
+    if SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY:
+        try:
+            response = await asyncio.to_thread(
+                call_glm_filename_rename,
+                filename,
+                mime_type,
+                repair_candidates,
+            )
+            model_filename = parsed_glm_filename(response)
+            if model_filename:
+                sanitized = sanitized_display_filename(model_filename, filename)
+                if sanitized:
+                    return sanitized, SMART_FILENAME_MODEL
+        except Exception as error:
+            logger.warning("Smart filename rename failed: %s", type(error).__name__)
+
+    repaired = deterministic_filename_repair(filename)
+    if repaired:
+        return repaired, "encoding-repair"
+    return filename, None
 
 
 @app.middleware("http")
@@ -234,7 +454,7 @@ def delete_asset_item(item_id: str, invite: str | None) -> dict[str, str]:
             CommitOperationDelete(path_in_repo=file_path(item)),
             CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
         ],
-        commit_message=f"Delete {item['originalName']}",
+        commit_message=f"Delete {item.get('displayName') or item['originalName']}",
     )
     return {"ok": "true", "id": item_id}
 
@@ -263,6 +483,7 @@ def health() -> dict[str, str]:
         "ok": "true",
         "service": "nospace-storage",
         "storage": "huggingface-dataset" if DATASET_REPO_ID else "unconfigured",
+        "smartFilenameRename": SMART_FILENAME_MODEL if SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY else "disabled",
     }
 
 
@@ -295,7 +516,7 @@ async def create_asset(
 
     try:
         temp_path, size, content_hash = await spool_upload_to_temp_file(file)
-        original_name = Path(file.filename or "upload.bin").name
+        original_name = safe_upload_name(file.filename)
         suffix = Path(original_name).suffix
         digest = hashlib.sha256(f"{content_hash}:{secrets.token_hex(8)}".encode("utf-8")).hexdigest()[:18]
         item_id = f"{int(time.time())}-{digest}"
@@ -303,12 +524,13 @@ async def create_asset(
         path_in_repo = f"files/{stored_name}"
 
         mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+        display_name, rename_model = await smart_display_filename(original_name, mime_type)
         hf_api.upload_file(
             repo_id=DATASET_REPO_ID,
             repo_type="dataset",
             path_in_repo=path_in_repo,
             path_or_fileobj=temp_path,
-            commit_message=f"Upload {original_name}",
+            commit_message=f"Upload {display_name}",
         )
 
         item = {
@@ -322,6 +544,9 @@ async def create_asset(
             "sourceName": client_ip(request),
             "note": note[:400],
         }
+        if display_name != original_name:
+            item["displayName"] = display_name
+            item["renameModel"] = rename_model
 
         items = load_index()
         items.append(item)
@@ -364,4 +589,4 @@ def read_file(item_id: str, invite: Annotated[str | None, Query()] = None) -> Fi
 @app.get("/files/{item_id}/download")
 def download_file(item_id: str, invite: Annotated[str | None, Query()] = None) -> FileResponse:
     item, path = file_item(item_id, invite)
-    return FileResponse(path, media_type=item["mimeType"], filename=item["originalName"])
+    return FileResponse(path, media_type=item["mimeType"], filename=item.get("displayName") or item["originalName"])

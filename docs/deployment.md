@@ -29,6 +29,8 @@ ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
 DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=200
+BAILIAN_OPENCODE_BASE_URL=<OpenAI-compatible GLM endpoint>
+BAILIAN_OPENCODE_MODEL=glm-5.2
 ```
 
 Production invite values are access credentials. Keep the real values in the Space `INVITES` secret/variable and do not commit them to the repository.
@@ -39,7 +41,10 @@ Set Space secrets:
 
 ```text
 HF_TOKEN=<token with write access to the private Dataset repo>
+BAILIAN_OPENCODE_API_KEY=<GLM credential>
 ```
+
+`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer only sends suspicious filenames, their MIME type, extension, and local encoding-repair candidates to GLM 5.2. File bytes and notes are not sent to the model. If the model is unavailable, uploads continue and the backend uses a safe deterministic encoding repair when possible.
 
 The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
 

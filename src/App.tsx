@@ -96,6 +96,10 @@ function displaySourceName(sourceName: string): string {
   return sourceName === "Anzi" || sourceName === "IP" ? "旧记录" : sourceName;
 }
 
+function assetDisplayName(asset: Asset): string {
+  return asset.displayName || asset.originalName;
+}
+
 function uploadPlaceholderId(file: File, index: number): string {
   return `upload-${Date.now()}-${index}-${file.name}`;
 }
@@ -315,7 +319,7 @@ export function App() {
     if (!query.trim()) return feed;
     const needle = query.trim().toLowerCase();
     return feed.filter((asset) =>
-      [asset.originalName, displaySourceName(asset.sourceName), asset.sourceName, asset.note, asset.mimeType]
+      [assetDisplayName(asset), asset.originalName, displaySourceName(asset.sourceName), asset.sourceName, asset.note, asset.mimeType]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(needle)),
     );
@@ -460,6 +464,7 @@ export function App() {
       if (uploaded.length > 0) {
         setAssets((current) => [...uploaded, ...current]);
         setNote("");
+        await refresh({ silent: true });
       }
 
       setUploadItems((current) =>
@@ -538,7 +543,7 @@ export function App() {
 
   const handleDeleteAsset = async (asset: Asset) => {
     if (!session || session.role !== "upload" || deletingId) return;
-    const confirmed = window.confirm(`删除 ${asset.originalName}？`);
+    const confirmed = window.confirm(`删除 ${assetDisplayName(asset)}？`);
     if (!confirmed) return;
 
     setDeletingId(asset.id);
@@ -758,6 +763,7 @@ function AssetCard({
   onDelete: () => void;
 }) {
   const kind = assetKind(asset);
+  const displayName = assetDisplayName(asset);
   const downloadUrl = asset.downloadUrl ? assetDownloadUrl(asset, invite) : "#";
   const isImage = kind === "image" && asset.url;
   const isText = kind === "text";
@@ -767,13 +773,13 @@ function AssetCard({
   return (
     <article className={toneClass}>
       <div className="asset-meta">
-        <FileName name={asset.originalName} />
+        <FileName name={displayName} />
         <time dateTime={asset.uploadedAt}>{formatTime(asset.uploadedAt)}</time>
       </div>
 
       {isImage && (
         <div className="asset-preview image-preview">
-          <img src={previewUrl} alt={asset.originalName} loading="lazy" />
+          <img src={previewUrl} alt={displayName} loading="lazy" />
         </div>
       )}
 
