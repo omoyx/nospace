@@ -1,9 +1,10 @@
 import json
 import sys
+import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi import HTTPException, UploadFile
 from requests import ConnectionError, Response
@@ -83,6 +84,26 @@ class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(filename, "季度报告 · PDF.pdf")
         self.assertEqual(model, "type-normalization")
 
+    def test_filename_request_includes_image_evidence(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(
+            {"choices": [{"message": {"content": '{"filename":"香港列表.png"}'}}]}
+        ).encode("utf-8")
+        evidence = {"ocrText": "Hong Kong 01", "caption": "香港条目列表"}
+
+        with (
+            patch.object(app, "SMART_FILENAME_BASE_URL", "https://example.test/v1"),
+            patch.object(app, "SMART_FILENAME_API_KEY", "test-key"),
+            patch.object(app.urllib.request, "urlopen", return_value=response) as urlopen,
+        ):
+            result = app.call_glm_filename_rename("Screenshot.png", "image/png", [], evidence)
+
+        request = urlopen.call_args.args[0]
+        request_payload = json.loads(request.data.decode("utf-8"))
+        user_payload = json.loads(request_payload["messages"][1]["content"])
+        self.assertEqual(user_payload["imageAnalysis"], evidence)
+        self.assertEqual(result, '{"filename":"香港列表.png"}')
+
     async def test_unchanged_model_response_uses_objective_type(self):
         response = json.dumps({"filename": "季度报告.pdf"}, ensure_ascii=False)
         with (
@@ -95,6 +116,62 @@ class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(filename, "季度报告 · PDF.pdf")
         self.assertEqual(model, "type-normalization")
 
+
+class ImageAnalysisTests(unittest.IsolatedAsyncioTestCase):
+    def test_small_png_keeps_source_encoding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "small.png"
+            app.Image.new("RGB", (120, 80), "white").save(path, format="PNG")
+            prepared = app.prepared_image_payload(path, "image/png")
+
+        self.assertIsNotNone(prepared)
+        payload, mime_type = prepared
+        self.assertEqual(mime_type, "image/png")
+        self.assertTrue(payload.startswith(b"\x89PNG"))
+
+    def test_large_image_is_resized_and_encoded_as_jpeg(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "large.png"
+            app.Image.new("RGB", (2400, 1800), "white").save(path, format="PNG")
+            prepared = app.prepared_image_payload(path, "image/png")
+
+        self.assertIsNotNone(prepared)
+        payload, mime_type = prepared
+        self.assertEqual(mime_type, "image/jpeg")
+        self.assertTrue(payload.startswith(b"\xff\xd8"))
+
+    def test_unsupported_image_mime_is_skipped(self):
+        self.assertIsNone(app.prepared_image_payload(Path("unused.svg"), "image/svg+xml"))
+
+    async def test_image_analysis_returns_bounded_ocr_and_caption(self):
+        response = {"ocrText": "Hong Kong 01\nHong Kong 02", "caption": "531x441 图片，视觉类别可能包括 web site（47%）。"}
+        with (
+            patch.object(app, "prepared_image_payload", return_value=(b"image", "image/png")),
+            patch.object(app, "call_image_analysis", return_value=response),
+        ):
+            result = await app.analyze_image(Path("test.png"), "image/png")
+
+        self.assertEqual(result, response)
+
+    async def test_image_analysis_failure_is_non_fatal(self):
+        with (
+            patch.object(app, "prepared_image_payload", side_effect=OSError("decode failed")),
+        ):
+            result = await app.analyze_image(Path("test.png"), "image/png")
+
+        self.assertIsNone(result)
+
+    def test_caption_combines_dimensions_labels_and_ocr_presence(self):
+        image = BytesIO()
+        app.Image.new("RGB", (531, 441), "white").save(image, format="PNG")
+        with (
+            patch.object(app, "extract_image_ocr", return_value="Hong Kong 01"),
+            patch.object(app, "classify_image", return_value=[("web site", 0.4743), ("menu", 0.0455)]),
+        ):
+            result = app.call_image_analysis(image.getvalue())
+
+        self.assertEqual(result["ocrText"], "Hong Kong 01")
+        self.assertEqual(result["caption"], "531x441 图片，视觉类别可能包括 web site（47%）、menu（5%），包含可识别文字。")
 
 class HuggingFaceRetryTests(unittest.TestCase):
     def test_retryable_network_error_is_retried(self):
@@ -166,14 +243,15 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
             headers=Headers({"content-type": "text/plain"}),
         )
 
+        image_evidence = {"ocrText": "Hong Kong 01", "caption": "香港条目列表"}
+        analyze_image = AsyncMock(return_value=image_evidence)
+        smart_filename = AsyncMock(return_value=("季度报告 v3.txt", "glm-5.2"))
+
         with (
             patch.object(app, "ensure_dataset"),
             patch.object(app.hf_api, "upload_file") as upload_file,
-            patch.object(
-                app,
-                "smart_display_filename",
-                new=AsyncMock(return_value=("季度报告 v3.txt", "glm-5.2")),
-            ),
+            patch.object(app, "analyze_image", new=analyze_image),
+            patch.object(app, "smart_display_filename", new=smart_filename),
             patch.object(app, "load_index", return_value=[]),
             patch.object(app, "save_index") as save_index,
         ):
@@ -185,6 +263,8 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
         upload_file.assert_called_once()
         save_index.assert_called_once()
         self.assertEqual(save_index.call_args.args[0][0]["displayName"], "季度报告 v3.txt")
+        analyze_image.assert_awaited_once()
+        smart_filename.assert_awaited_once_with("Quarterly_Report_FINAL_v3.txt", "text/plain", image_evidence)
 
 
 if __name__ == "__main__":

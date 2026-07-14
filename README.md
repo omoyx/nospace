@@ -74,6 +74,8 @@ https://mannycooper-nospace-storage.hf.space
 
 When GLM 5.2 credentials are configured on the backend, every uploaded filename is optimized before the asset is added to the feed. The original upload name remains in metadata and appears as a muted second line, while the generated name is used for primary display and downloads. Model failure never blocks an upload; an objective MIME type suffix provides a distinct fallback name.
 
+For supported raster images, the backend runs local Chinese/English Tesseract OCR and uses Hugging Face MobileNetV2 classification labels to build a bounded caption before GLM naming. Small images keep their original encoding; larger images are resized and compressed for analysis. OCR, classification, and filename-model failures remain non-fatal.
+
 For GitHub Pages:
 
 ```bash

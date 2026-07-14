@@ -31,6 +31,7 @@ DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=200
 BAILIAN_OPENCODE_BASE_URL=<OpenAI-compatible GLM endpoint>
 BAILIAN_OPENCODE_MODEL=glm-5.2
+IMAGE_CLASSIFICATION_MODEL=google/mobilenet_v2_1.0_224
 ```
 
 Production invite values are access credentials. Keep the real values in the Space `INVITES` secret/variable and do not commit them to the repository.
@@ -44,7 +45,9 @@ HF_TOKEN=<token with write access to the private Dataset repo>
 BAILIAN_OPENCODE_API_KEY=<GLM credential>
 ```
 
-`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer sends every uploaded filename, its MIME type, extension, and local encoding-repair candidates to GLM 5.2. File bytes and notes are not sent to the model. If the model is unavailable, uploads continue: mojibake uses safe deterministic encoding repair when possible, and other names receive an objective MIME type suffix.
+`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer sends every uploaded filename, its MIME type, extension, local encoding-repair candidates, and optional OCR/caption text to GLM 5.2. File bytes and notes are not sent to GLM. If the model is unavailable, uploads continue: mojibake uses safe deterministic encoding repair when possible, and other names receive an objective MIME type suffix.
+
+Supported raster images are decoded locally and bounded to a 1600-pixel longest edge and approximately 3 MB. Tesseract performs Chinese/English OCR inside the Space. The bounded image is sent through the existing `HF_TOKEN` to `google/mobilenet_v2_1.0_224` on Hugging Face Inference for visual labels; no Qwen vision model is used. Labels, dimensions, and OCR form the caption passed to GLM as untrusted evidence. Notes and extracted evidence are never persisted in `index.json`.
 
 The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
 
