@@ -41,7 +41,16 @@
 
 ## Production
 
-- Pending deployment and public verification.
+- Committed the implementation as `0bb0697 Retry transient Dataset upload failures` and pushed `main` to GitHub.
+- Uploaded the backend to Hugging Face Space commit `dc9b687fd8030ae3d02c4e37533211047f23c0cc`.
+- Verified Space repo SHA and runtime SHA both equal that commit, runtime stage is `RUNNING`, and the public domain stage is `READY`.
+- Verified `https://mannycooper-nospace-storage.hf.space/` returns `HTTP 200` with the expected storage and GLM status.
+- Verified the public Space `app.py` contains the retry delays, retry runner, Dataset upload wrapper, and stable `503` detail.
+- Verified the public Space `requirements.txt` includes `requests==2.32.3`.
+- GitHub Pages workflow run `29301469944` completed successfully for commit `0bb06976b8492a70594c8da53c9b3535d45e5d25`:
+  - `https://github.com/omoyx/nospace/actions/runs/29301469944`
+- A first read of the public Space requirements hit `LibreSSL SSL_ERROR_SYSCALL`; the bounded retry succeeded, independently confirming the class of transient provider/network failure addressed by this change.
+- End-to-end production upload verification requires the current upload invite, which remains intentionally absent from the repository. The user was asked to retry the exact file after the new Space revision became `RUNNING`.
 
 ## Mistakes
 
