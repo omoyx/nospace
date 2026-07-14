@@ -2,7 +2,6 @@ import { ChangeEvent, DragEvent, FormEvent, ReactNode, useCallback, useEffect, u
 import {
   ArrowDownToLine,
   Copy,
-  X,
   FileText,
   Loader2,
   LockKeyhole,
@@ -701,11 +700,18 @@ export function App() {
               invite={invite}
               canDelete={canUpload}
               deleting={deletingId === asset.id}
+              confirming={deleteTarget?.id === asset.id}
+              deleteError={deleteTarget?.id === asset.id ? deleteError : ""}
               onCopy={() => void copyLink(asset)}
               onDelete={() => {
                 setDeleteError("");
                 setDeleteTarget(asset);
               }}
+              onCancelDelete={() => {
+                setDeleteError("");
+                setDeleteTarget(null);
+              }}
+              onConfirmDelete={() => void handleDeleteAsset(asset)}
             />
           ))}
         </Masonry>
@@ -721,81 +727,7 @@ export function App() {
         {actionError && <div className="notice error">{actionError}</div>}
 
       </section>
-
-      {deleteTarget && (
-        <DeleteConfirmDialog
-          asset={deleteTarget}
-          deleting={deletingId === deleteTarget.id}
-          error={deleteError}
-          onCancel={() => {
-            if (!deletingId) setDeleteTarget(null);
-          }}
-          onConfirm={() => void handleDeleteAsset(deleteTarget)}
-        />
-      )}
     </main>
-  );
-}
-
-function DeleteConfirmDialog({
-  asset,
-  deleting,
-  error,
-  onCancel,
-  onConfirm,
-}: {
-  asset: Asset;
-  deleting: boolean;
-  error: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    cancelButtonRef.current?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !deleting) onCancel();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [deleting, onCancel]);
-
-  return (
-    <div className="delete-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !deleting && onCancel()}>
-      <section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
-        <button className="delete-dialog-close" onClick={onCancel} disabled={deleting} title="关闭">
-          <X size={17} />
-          <span className="sr-only">关闭</span>
-        </button>
-        <div className="delete-dialog-icon" aria-hidden="true">
-          <Trash2 size={20} />
-        </div>
-        <div className="delete-dialog-copy">
-          <h2 id="delete-dialog-title">删除这个文件？</h2>
-          <p id="delete-dialog-description">删除后无法恢复，也无法再通过原链接下载。</p>
-          <div className="delete-dialog-file">
-            <FileName name={assetDisplayName(asset)} />
-            {asset.displayName && asset.displayName !== asset.originalName && <span>{asset.originalName}</span>}
-          </div>
-          {error && <p className="delete-dialog-error" role="alert">{error}</p>}
-        </div>
-        <div className="delete-dialog-actions">
-          <button ref={cancelButtonRef} className="delete-dialog-cancel" onClick={onCancel} disabled={deleting}>取消</button>
-          <button className="delete-dialog-confirm" onClick={onConfirm} disabled={deleting}>
-            {deleting ? <Loader2 className="spin" size={16} /> : <Trash2 size={16} />}
-            <span>{deleting ? "删除中" : "确认删除"}</span>
-          </button>
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -831,16 +763,24 @@ function AssetCard({
   invite,
   canDelete,
   deleting,
+  confirming,
+  deleteError,
   onCopy,
   onDelete,
+  onCancelDelete,
+  onConfirmDelete,
 }: {
   asset: Asset;
   index: number;
   invite: string;
   canDelete: boolean;
   deleting: boolean;
+  confirming: boolean;
+  deleteError: string;
   onCopy: () => void;
   onDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
 }) {
   const kind = assetKind(asset);
   const displayName = assetDisplayName(asset);
@@ -851,7 +791,8 @@ function AssetCard({
   const toneClass = `asset-card tone-${index % 5}`;
 
   return (
-    <article className={toneClass}>
+    <article className={`${toneClass}${confirming ? " is-confirming-delete" : ""}`}>
+      <div className="asset-card-content">
       <div className="asset-meta">
         <div className="asset-title-stack">
           <FileName name={displayName} />
@@ -893,6 +834,17 @@ function AssetCard({
           </a>
         </div>
       </div>
+      </div>
+      {confirming && (
+        <div className="asset-delete-confirm" role="alertdialog" aria-label={`确认删除 ${displayName}`}>
+          <button className="asset-delete-confirm-button" onClick={onConfirmDelete} disabled={deleting} autoFocus>
+            {deleting ? <Loader2 className="spin" size={16} /> : <Trash2 size={16} />}
+            <span>{deleting ? "删除中" : "确认删除"}</span>
+          </button>
+          <button className="asset-delete-cancel-button" onClick={onCancelDelete} disabled={deleting}>取消</button>
+          {deleteError && <p role="alert">{deleteError}</p>}
+        </div>
+      )}
     </article>
   );
 }

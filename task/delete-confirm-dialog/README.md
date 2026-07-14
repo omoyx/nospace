@@ -2,14 +2,14 @@
 
 ## Goal
 
-- Replace the browser-native delete confirmation with a NoSpace UI component.
-- Keep destructive intent explicit without disrupting the minimal gray canvas.
+- Replace the browser-native delete confirmation with an inline card state.
+- Keep destructive intent explicit without interrupting the surrounding canvas.
 
 ## Behavior
 
-- Show the display filename and muted original filename when they differ.
-- Support cancel, backdrop click, close icon, and Escape.
-- Lock dismissal while deletion is running and show the request error inline.
+- Blur only the selected card and center the second confirmation action over it.
+- Support a quiet cancel action without a page-level overlay or dialog.
+- Lock cancellation while deletion is running and show the request error in the card.
 - Preserve the existing card delete icon and delete API behavior.
 
 ## Verification
