@@ -14,15 +14,16 @@ import urllib.error
 import urllib.request
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Callable, TypeVar
 from urllib.parse import unquote
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, hf_hub_download
-from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
+from huggingface_hub.errors import EntryNotFoundError, HfHubHTTPError, RepositoryNotFoundError
 from pydantic import BaseModel
+from requests import RequestException
 
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 DATASET_REPO_ID = os.getenv("DATASET_REPO_ID", "").strip()
@@ -37,8 +38,10 @@ SMART_FILENAME_API_KEY = os.getenv("BAILIAN_OPENCODE_API_KEY", "").strip()
 SMART_FILENAME_MODEL = os.getenv("BAILIAN_OPENCODE_MODEL", "glm-5.2").strip() or "glm-5.2"
 SMART_FILENAME_TIMEOUT_SECONDS = int(os.getenv("SMART_FILENAME_TIMEOUT_SECONDS", "30"))
 SMART_FILENAME_MAX_TOKENS = int(os.getenv("SMART_FILENAME_MAX_TOKENS", "120"))
+HF_RETRY_DELAYS_SECONDS = (0.5, 1.5)
 
 logger = logging.getLogger("nospace")
+T = TypeVar("T")
 MOJIBAKE_MARKERS = frozenset("ÃÂâæçåèäðÐÑ¤¦¬¯µ•™œž")
 ENCODING_REPAIR_PAIRS = (
     ("latin-1", "utf-8"),
@@ -432,13 +435,76 @@ def public_session(session: dict[str, str], request: Request) -> dict[str, str]:
     return session
 
 
+def hf_error_status(error: Exception) -> int | None:
+    response = getattr(error, "response", None)
+    return getattr(response, "status_code", None)
+
+
+def is_retryable_hf_error(error: Exception) -> bool:
+    status = hf_error_status(error)
+    if status is not None:
+        return status == 429 or status >= 500
+    return isinstance(error, RequestException)
+
+
+def run_hf_with_retry(operation: Callable[[], T], operation_name: str) -> T:
+    for attempt in range(len(HF_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            return operation()
+        except (HfHubHTTPError, RequestException) as error:
+            can_retry = is_retryable_hf_error(error) and attempt < len(HF_RETRY_DELAYS_SECONDS)
+            if not can_retry:
+                raise
+            delay = HF_RETRY_DELAYS_SECONDS[attempt]
+            logger.warning(
+                "Hugging Face %s failed with status %s; retrying in %.1fs",
+                operation_name,
+                hf_error_status(error) or "network-error",
+                delay,
+            )
+            time.sleep(delay)
+    raise RuntimeError("Hugging Face retry loop exited unexpectedly")
+
+
+def storage_http_error(error: Exception) -> HTTPException:
+    status = hf_error_status(error)
+    if status in {401, 403}:
+        return HTTPException(status_code=500, detail="Dataset 写入凭据不可用")
+    if status == 404:
+        return HTTPException(status_code=500, detail="Dataset 仓库不可用")
+    return HTTPException(status_code=503, detail="存储服务暂时不可用，请稍后重试")
+
+
 def ensure_dataset() -> None:
     if not DATASET_REPO_ID:
         raise HTTPException(status_code=500, detail="DATASET_REPO_ID 未配置")
     try:
-        hf_api.repo_info(repo_id=DATASET_REPO_ID, repo_type="dataset")
+        run_hf_with_retry(
+            lambda: hf_api.repo_info(repo_id=DATASET_REPO_ID, repo_type="dataset"),
+            "dataset check",
+        )
     except RepositoryNotFoundError as error:
         raise HTTPException(status_code=500, detail="Dataset 仓库不可用") from error
+    except (HfHubHTTPError, RequestException) as error:
+        raise storage_http_error(error) from error
+
+
+def upload_dataset_file(path_in_repo: str, source: Path | BytesIO, commit_message: str) -> None:
+    def upload() -> None:
+        if isinstance(source, BytesIO):
+            source.seek(0)
+        hf_api.upload_file(
+            repo_id=DATASET_REPO_ID,
+            repo_type="dataset",
+            path_in_repo=path_in_repo,
+            path_or_fileobj=source,
+            commit_message=commit_message,
+        )
+
+    try:
+        run_hf_with_retry(upload, "dataset upload")
+    except (HfHubHTTPError, RequestException) as error:
+        raise storage_http_error(error) from error
 
 
 def load_index() -> list[dict]:
@@ -461,13 +527,7 @@ def load_index() -> list[dict]:
 def save_index(items: list[dict]) -> None:
     ensure_dataset()
     payload = json.dumps(items, ensure_ascii=False, indent=2).encode("utf-8")
-    hf_api.upload_file(
-        repo_id=DATASET_REPO_ID,
-        repo_type="dataset",
-        path_in_repo=INDEX_PATH,
-        path_or_fileobj=BytesIO(payload),
-        commit_message="Update NoSpace index",
-    )
+    upload_dataset_file(INDEX_PATH, BytesIO(payload), "Update NoSpace index")
 
 
 def delete_asset_item(item_id: str, invite: str | None) -> dict[str, str]:
@@ -561,13 +621,7 @@ async def create_asset(
 
         mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
         display_name, rename_model = await smart_display_filename(original_name, mime_type)
-        hf_api.upload_file(
-            repo_id=DATASET_REPO_ID,
-            repo_type="dataset",
-            path_in_repo=path_in_repo,
-            path_or_fileobj=temp_path,
-            commit_message=f"Upload {display_name}",
-        )
+        upload_dataset_file(path_in_repo, temp_path, f"Upload {display_name}")
 
         item = {
             "id": item_id,

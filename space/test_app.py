@@ -3,9 +3,10 @@ import sys
 import unittest
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
+from requests import ConnectionError, Response
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
@@ -94,6 +95,59 @@ class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(filename, "季度报告 · PDF.pdf")
         self.assertEqual(model, "type-normalization")
 
+
+class HuggingFaceRetryTests(unittest.TestCase):
+    def test_retryable_network_error_is_retried(self):
+        operation = Mock(side_effect=[ConnectionError("offline"), "ok"])
+        with patch.object(app.time, "sleep") as sleep:
+            result = app.run_hf_with_retry(operation, "test operation")
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(operation.call_count, 2)
+        sleep.assert_called_once_with(0.5)
+
+    def test_final_network_error_becomes_service_unavailable(self):
+        with (
+            patch.object(app.hf_api, "upload_file", side_effect=ConnectionError("offline")),
+            patch.object(app.time, "sleep"),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            app.upload_dataset_file("files/test.txt", BytesIO(b"test"), "Upload test")
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(raised.exception.detail, "存储服务暂时不可用，请稍后重试")
+
+    def test_auth_error_is_not_retried(self):
+        response = Response()
+        response.status_code = 401
+        error = app.HfHubHTTPError("unauthorized", response=response)
+        operation = Mock(side_effect=error)
+        with (
+            patch.object(app.time, "sleep") as sleep,
+            self.assertRaises(app.HfHubHTTPError),
+        ):
+            app.run_hf_with_retry(operation, "test operation")
+
+        operation.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_in_memory_payload_is_rewound_before_retry(self):
+        positions = []
+
+        def upload_file(**kwargs):
+            source = kwargs["path_or_fileobj"]
+            positions.append(source.tell())
+            if len(positions) == 1:
+                source.read()
+                raise ConnectionError("offline")
+
+        with (
+            patch.object(app.hf_api, "upload_file", side_effect=upload_file),
+            patch.object(app.time, "sleep"),
+        ):
+            app.upload_dataset_file("index.json", BytesIO(b"[]"), "Update index")
+
+        self.assertEqual(positions, [0, 0])
 
 class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
     async def test_created_asset_keeps_original_and_smart_display_names(self):
