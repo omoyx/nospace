@@ -39,7 +39,16 @@
 
 ## Production
 
-- Pending deployment and public verification.
+- Pushed implementation commit `07d7574` and deployment-artifact guard commit `d285061` to `main`.
+- Set the Space variable `IMAGE_CLASSIFICATION_MODEL=google/mobilenet_v2_1.0_224`; no Qwen variable or secret is configured.
+- Uploaded the backend to Hugging Face Space commit `a49d9e94ea3af5bcc49a1607d047c0396cf643d1`.
+- Detected and removed ignored local `storage/` and `__pycache__/` artifacts from the Space, then deployed clean commit `b987b6a5514f2dbf61dbd7a09b642e86514c8339`.
+- Verified the Space repo SHA and runtime SHA both equal the clean commit and the runtime stage is `RUNNING`.
+- Verified the public Space file list contains no `storage/`, bytecode, or uploaded image artifacts.
+- Verified the public Dockerfile installs `tesseract-ocr`, `tesseract-ocr-chi-sim`, and `tesseract-ocr-eng`.
+- Verified the public app source contains the bounded Tesseract, MobileNet, and `imageAnalysis` flow and contains no `qwen3-vl-flash` marker.
+- Verified `https://mannycooper-nospace-storage.hf.space/` returns `imageAnalysis: tesseract+google/mobilenet_v2_1.0_224`, `smartFilenameRename: glm-5.2`, and Dataset storage.
+- A production upload was not performed because the current upload invite remains intentionally absent from the repository. The user should retry the exact screenshot through the public frontend.
 
 ## Mistakes
 
