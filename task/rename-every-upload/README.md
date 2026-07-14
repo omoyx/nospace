@@ -36,7 +36,20 @@
 
 ## Production
 
-- Pending deployment and public verification.
+- Committed the implementation as `de173e9 Rename every uploaded file` and pushed `main` to GitHub.
+- Uploaded the backend to Hugging Face Space commit `821ff950edf2dc0fe9caa4dc926437e40b3b1d61`.
+- Verified the Space runtime reached `RUNNING` at that exact SHA.
+- Verified `https://mannycooper-nospace-storage.hf.space/` returns `HTTP 200` with `"smartFilenameRename":"glm-5.2"`.
+- Verified the public Space `app.py` contains the every-upload prompt, `objective_file_type`, `type_normalized_filename`, and the upload-time `smart_display_filename` call.
+- GitHub Pages workflow run `29299980338` completed successfully for commit `de173e92a2851194e297b266fd280aad3fc3d493`:
+  - `https://github.com/omoyx/nospace/actions/runs/29299980338`
+- Verified `https://omoyx.github.io/nospace/?release=de173e9` returns `HTTP 200` and loads:
+  - `/nospace/assets/index-Bnzjz3wW.js`
+  - `/nospace/assets/index-CQNaUKkS.css`
+- Verified the public JavaScript contains `asset-title-stack`, `asset-original-name`, `displayName`, and `originalName`.
+- Verified the public CSS contains the muted original-name class with `#a2a5a8` and `font-size:10px`.
+- Opened the public frontend in the in-app browser; the page title was `NoSpace` and browser error/warning logs were empty.
+- A temporary production upload was not performed because the current upload invite remains intentionally absent from the repository. The deployed backend source/config, real GLM calls, route tests, and local desktop/mobile browser upload flow verify the change without bypassing production access controls.
 
 ## Mistakes
 
