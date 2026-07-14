@@ -194,9 +194,12 @@ def call_glm_filename_rename(filename: str, mime_type: str, repair_candidates: l
         {
             "role": "system",
             "content": (
-                "你是文件名乱码恢复助手。根据原文件名和可逆编码候选，恢复最可信、简洁、自然的文件名。"
-                "优先采用可信的编码恢复结果，不翻译正常的品牌、产品名或人名，不虚构文件内容。"
-                "若原意无法恢复，使用与 MIME 类型对应的简洁中文通用名。"
+                "你是文件名优化助手。为每个上传文件生成简洁、自然、易读的新文件名。"
+                "遇到乱码时优先采用可信的编码恢复结果；正常文件名则保留原有事实含义并做最小幅度整理。"
+                "保留有意义的日期、版本、品牌、产品名和人名，不凭空添加最终版、新版等未经给出的信息。"
+                "新文件名必须与 originalFilename 不同；可以翻译通用描述、清理分隔符或补充 MIME 对应的客观类型词，"
+                "但不能只改变扩展名，也不能为了不同而虚构内容。"
+                "若乱码原意无法恢复，使用与 MIME 类型对应的简洁中文通用名。"
                 "必须保留给定扩展名，禁止路径、控制字符和说明文字。"
                 "只输出合法 JSON，格式为 {\"filename\":\"文件名.ext\"}。"
             ),
@@ -295,10 +298,39 @@ def deterministic_filename_repair(filename: str) -> str | None:
     return None
 
 
-async def smart_display_filename(filename: str, mime_type: str) -> tuple[str, str | None]:
-    if not is_garbled_filename(filename):
-        return filename, None
+def objective_file_type(mime_type: str) -> str:
+    normalized = mime_type.lower()
+    if normalized == "application/pdf":
+        return "PDF"
+    if normalized.startswith("image/"):
+        return "图片"
+    if normalized.startswith("video/"):
+        return "视频"
+    if normalized.startswith("audio/"):
+        return "音频"
+    if normalized.startswith("text/"):
+        return "文本"
+    if any(marker in normalized for marker in ("zip", "rar", "tar", "gzip", "7z")):
+        return "压缩包"
+    if any(marker in normalized for marker in ("spreadsheet", "excel", "csv")):
+        return "表格"
+    if any(marker in normalized for marker in ("presentation", "powerpoint")):
+        return "演示文稿"
+    if any(marker in normalized for marker in ("word", "document")):
+        return "文档"
+    return "文件"
 
+
+def type_normalized_filename(filename: str, mime_type: str, is_garbled: bool) -> str:
+    extension = Path(filename).suffix
+    stem = filename[: -len(extension)] if extension else filename
+    file_type = objective_file_type(mime_type)
+    candidate = f"上传{file_type}{extension}" if is_garbled else f"{stem} · {file_type}{extension}"
+    return sanitized_display_filename(candidate, filename) or filename
+
+
+async def smart_display_filename(filename: str, mime_type: str) -> tuple[str, str | None]:
+    is_garbled = is_garbled_filename(filename)
     repair_candidates = filename_repair_candidates(filename)
     if SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY:
         try:
@@ -316,9 +348,13 @@ async def smart_display_filename(filename: str, mime_type: str) -> tuple[str, st
         except Exception as error:
             logger.warning("Smart filename rename failed: %s", type(error).__name__)
 
-    repaired = deterministic_filename_repair(filename)
-    if repaired:
-        return repaired, "encoding-repair"
+    if is_garbled:
+        repaired = deterministic_filename_repair(filename)
+        if repaired:
+            return repaired, "encoding-repair"
+    normalized = type_normalized_filename(filename, mime_type, is_garbled)
+    if normalized != filename:
+        return normalized, "type-normalization"
     return filename, None
 
 

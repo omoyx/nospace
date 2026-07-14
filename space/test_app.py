@@ -40,22 +40,25 @@ class FilenameDetectionTests(unittest.TestCase):
 
 
 class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
-    async def test_glm_renames_only_garbled_filename(self):
-        response = json.dumps({"filename": "测试报告.pdf"}, ensure_ascii=False)
+    async def test_glm_renames_garbled_and_normal_filenames(self):
+        responses = [
+            json.dumps({"filename": "测试报告.pdf"}, ensure_ascii=False),
+            json.dumps({"filename": "季度工作报告.pdf"}, ensure_ascii=False),
+        ]
         with (
             patch.object(app, "SMART_FILENAME_BASE_URL", "https://example.test/v1"),
             patch.object(app, "SMART_FILENAME_API_KEY", "test-key"),
             patch.object(app, "SMART_FILENAME_MODEL", "glm-5.2"),
-            patch.object(app, "call_glm_filename_rename", return_value=response) as rename,
+            patch.object(app, "call_glm_filename_rename", side_effect=responses) as rename,
         ):
             filename, model = await app.smart_display_filename("æµ‹è¯•æŠ¥å‘Š.pdf", "application/pdf")
             normal_filename, normal_model = await app.smart_display_filename("季度报告.pdf", "application/pdf")
 
         self.assertEqual(filename, "测试报告.pdf")
         self.assertEqual(model, "glm-5.2")
-        self.assertEqual(normal_filename, "季度报告.pdf")
-        self.assertIsNone(normal_model)
-        rename.assert_called_once()
+        self.assertEqual(normal_filename, "季度工作报告.pdf")
+        self.assertEqual(normal_model, "glm-5.2")
+        self.assertEqual(rename.call_count, 2)
 
     async def test_model_failure_falls_back_to_encoding_repair(self):
         with (
@@ -67,6 +70,29 @@ class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(filename, "测试报告.pdf")
         self.assertEqual(model, "encoding-repair")
+
+    async def test_model_failure_uses_type_normalized_filename(self):
+        with (
+            patch.object(app, "SMART_FILENAME_BASE_URL", "https://example.test/v1"),
+            patch.object(app, "SMART_FILENAME_API_KEY", "test-key"),
+            patch.object(app, "call_glm_filename_rename", side_effect=RuntimeError("offline")),
+        ):
+            filename, model = await app.smart_display_filename("季度报告.pdf", "application/pdf")
+
+        self.assertEqual(filename, "季度报告 · PDF.pdf")
+        self.assertEqual(model, "type-normalization")
+
+    async def test_unchanged_model_response_uses_objective_type(self):
+        response = json.dumps({"filename": "季度报告.pdf"}, ensure_ascii=False)
+        with (
+            patch.object(app, "SMART_FILENAME_BASE_URL", "https://example.test/v1"),
+            patch.object(app, "SMART_FILENAME_API_KEY", "test-key"),
+            patch.object(app, "call_glm_filename_rename", return_value=response),
+        ):
+            filename, model = await app.smart_display_filename("季度报告.pdf", "application/pdf")
+
+        self.assertEqual(filename, "季度报告 · PDF.pdf")
+        self.assertEqual(model, "type-normalization")
 
 
 class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
@@ -82,7 +108,7 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
         )
         upload = UploadFile(
             file=BytesIO(b"smart filename rename test"),
-            filename="æµ‹è¯•æŠ¥å‘Š.txt",
+            filename="Quarterly_Report_FINAL_v3.txt",
             headers=Headers({"content-type": "text/plain"}),
         )
 
@@ -92,19 +118,19 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
             patch.object(
                 app,
                 "smart_display_filename",
-                new=AsyncMock(return_value=("测试报告.txt", "glm-5.2")),
+                new=AsyncMock(return_value=("季度报告 v3.txt", "glm-5.2")),
             ),
             patch.object(app, "load_index", return_value=[]),
             patch.object(app, "save_index") as save_index,
         ):
             result = await app.create_asset(request, upload, "", "upload-demo")
 
-        self.assertEqual(result["originalName"], "æµ‹è¯•æŠ¥å‘Š.txt")
-        self.assertEqual(result["displayName"], "测试报告.txt")
+        self.assertEqual(result["originalName"], "Quarterly_Report_FINAL_v3.txt")
+        self.assertEqual(result["displayName"], "季度报告 v3.txt")
         self.assertEqual(result["renameModel"], "glm-5.2")
         upload_file.assert_called_once()
         save_index.assert_called_once()
-        self.assertEqual(save_index.call_args.args[0][0]["displayName"], "测试报告.txt")
+        self.assertEqual(save_index.call_args.args[0][0]["displayName"], "季度报告 v3.txt")
 
 
 if __name__ == "__main__":

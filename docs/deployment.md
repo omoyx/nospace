@@ -44,7 +44,7 @@ HF_TOKEN=<token with write access to the private Dataset repo>
 BAILIAN_OPENCODE_API_KEY=<GLM credential>
 ```
 
-`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer only sends suspicious filenames, their MIME type, extension, and local encoding-repair candidates to GLM 5.2. File bytes and notes are not sent to the model. If the model is unavailable, uploads continue and the backend uses a safe deterministic encoding repair when possible.
+`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer sends every uploaded filename, its MIME type, extension, and local encoding-repair candidates to GLM 5.2. File bytes and notes are not sent to the model. If the model is unavailable, uploads continue: mojibake uses safe deterministic encoding repair when possible, and other names receive an objective MIME type suffix.
 
 The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
 

@@ -1,0 +1,43 @@
+# rename-every-upload
+
+## Goal
+
+- Run GLM 5.2 filename optimization for every new upload, not only detected mojibake.
+- Display the generated name as the primary card title.
+- Display the original upload name as a muted second line.
+
+## Implementation
+
+- Every upload calls the configured GLM filename endpoint with the original name, extension, MIME type, and reversible encoding candidates.
+- File bytes and notes remain private and are not sent to the model.
+- Mojibake keeps deterministic encoding repair as a fallback.
+- If GLM is unavailable or returns the original name unchanged, an objective MIME label guarantees a distinct result such as `季度报告 · PDF.pdf`; unrecoverable mojibake uses a generic type name instead of preserving broken text.
+- Cards render `displayName` on the first line and a smaller muted `originalName` below it when the names differ.
+- Historical assets without `displayName` remain single-line instead of repeating the same name.
+
+## Verification
+
+- `.venv/bin/python -m py_compile space/app.py space/test_app.py` passed.
+- `.venv/bin/python -m unittest space/test_app.py -v` passed with 11 tests covering every-file model calls, unchanged model responses, model failure, mojibake repair, MIME fallback, output sanitization, and saved metadata.
+- Real GLM 5.2 calls using the local reference configuration produced distinct names for normal inputs:
+  - `Quarterly_Report_FINAL_v3.txt` -> `季度报告_v3.txt`
+  - `季度报告.pdf` -> `季度报告文档.pdf`
+  - `IMG_1234.jpg` -> `照片IMG_1234.jpg`
+- `npm run lint` passed.
+- `GITHUB_PAGES=true VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space VITE_MAX_UPLOAD_MB=200 npm run build` passed.
+- In-app browser verification against the local mock API confirmed:
+  - The card displays generated `季度报告 v3.txt` on the first line and original `Quarterly_Report_FINAL_v3.txt` on the second line.
+  - The original line computes to `10px`, weight `500`, color `rgb(162, 165, 168)`, with ellipsis overflow.
+  - Desktop screenshot: `/tmp/nospace-rename-every-desktop.png`.
+  - Mobile screenshot at `390x844`: `/tmp/nospace-rename-every-mobile.png`.
+  - At mobile width, the original-name line remained within the asset card bounds.
+  - Browser error/warning logs were empty.
+- `git diff --check` passed.
+
+## Production
+
+- Pending deployment and public verification.
+
+## Mistakes
+
+- No new recurring issue identified; model-output safety remains covered by `mistake/ai-generated-filename-safety.md`.

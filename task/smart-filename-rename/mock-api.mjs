@@ -6,8 +6,8 @@ let uploaded = false;
 const renamedAsset = {
   id: "smart-rename-test",
   filename: "smart-rename-test.txt",
-  originalName: "æµ‹è¯•æŠ¥å‘Š.txt",
-  displayName: "测试报告.txt",
+  originalName: "Quarterly_Report_FINAL_v3.txt",
+  displayName: "季度报告 v3.txt",
   renameModel: "glm-5.2",
   mimeType: "text/plain",
   size: 27,

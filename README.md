@@ -72,7 +72,7 @@ Current backend:
 https://mannycooper-nospace-storage.hf.space
 ```
 
-When GLM 5.2 credentials are configured on the backend, suspicious mojibake filenames are repaired before the asset is added to the feed. The original upload name remains in metadata, while the repaired name is used for display and downloads. Normal filenames do not call the model.
+When GLM 5.2 credentials are configured on the backend, every uploaded filename is optimized before the asset is added to the feed. The original upload name remains in metadata and appears as a muted second line, while the generated name is used for primary display and downloads. Model failure never blocks an upload; an objective MIME type suffix provides a distinct fallback name.
 
 For GitHub Pages:
 

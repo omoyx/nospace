@@ -773,7 +773,12 @@ function AssetCard({
   return (
     <article className={toneClass}>
       <div className="asset-meta">
-        <FileName name={displayName} />
+        <div className="asset-title-stack">
+          <FileName name={displayName} />
+          {asset.displayName && asset.displayName !== asset.originalName && (
+            <span className="asset-original-name" title={asset.originalName}>{asset.originalName}</span>
+          )}
+        </div>
         <time dateTime={asset.uploadedAt}>{formatTime(asset.uploadedAt)}</time>
       </div>
 
