@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, FormEvent, ReactNode, useCallback, useEffect, u
 import {
   ArrowDownToLine,
   Copy,
+  X,
   FileText,
   Loader2,
   LockKeyhole,
@@ -271,6 +272,8 @@ export function App() {
   const [uploadError, setUploadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepthRef = useRef(0);
   const dragOverlayTimerRef = useRef<number | null>(null);
@@ -543,16 +546,16 @@ export function App() {
 
   const handleDeleteAsset = async (asset: Asset) => {
     if (!session || session.role !== "upload" || deletingId) return;
-    const confirmed = window.confirm(`删除 ${assetDisplayName(asset)}？`);
-    if (!confirmed) return;
 
     setDeletingId(asset.id);
     setActionError("");
+    setDeleteError("");
     try {
       await deleteAsset(invite, asset.id);
       setAssets((current) => current.filter((item) => item.id !== asset.id));
+      setDeleteTarget(null);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "删除失败");
+      setDeleteError(error instanceof Error ? error.message : "删除失败");
     } finally {
       setDeletingId("");
     }
@@ -699,7 +702,10 @@ export function App() {
               canDelete={canUpload}
               deleting={deletingId === asset.id}
               onCopy={() => void copyLink(asset)}
-              onDelete={() => void handleDeleteAsset(asset)}
+              onDelete={() => {
+                setDeleteError("");
+                setDeleteTarget(asset);
+              }}
             />
           ))}
         </Masonry>
@@ -715,7 +721,81 @@ export function App() {
         {actionError && <div className="notice error">{actionError}</div>}
 
       </section>
+
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          asset={deleteTarget}
+          deleting={deletingId === deleteTarget.id}
+          error={deleteError}
+          onCancel={() => {
+            if (!deletingId) setDeleteTarget(null);
+          }}
+          onConfirm={() => void handleDeleteAsset(deleteTarget)}
+        />
+      )}
     </main>
+  );
+}
+
+function DeleteConfirmDialog({
+  asset,
+  deleting,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  asset: Asset;
+  deleting: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    cancelButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) onCancel();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [deleting, onCancel]);
+
+  return (
+    <div className="delete-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !deleting && onCancel()}>
+      <section className="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+        <button className="delete-dialog-close" onClick={onCancel} disabled={deleting} title="关闭">
+          <X size={17} />
+          <span className="sr-only">关闭</span>
+        </button>
+        <div className="delete-dialog-icon" aria-hidden="true">
+          <Trash2 size={20} />
+        </div>
+        <div className="delete-dialog-copy">
+          <h2 id="delete-dialog-title">删除这个文件？</h2>
+          <p id="delete-dialog-description">删除后无法恢复，也无法再通过原链接下载。</p>
+          <div className="delete-dialog-file">
+            <FileName name={assetDisplayName(asset)} />
+            {asset.displayName && asset.displayName !== asset.originalName && <span>{asset.originalName}</span>}
+          </div>
+          {error && <p className="delete-dialog-error" role="alert">{error}</p>}
+        </div>
+        <div className="delete-dialog-actions">
+          <button ref={cancelButtonRef} className="delete-dialog-cancel" onClick={onCancel} disabled={deleting}>取消</button>
+          <button className="delete-dialog-confirm" onClick={onConfirm} disabled={deleting}>
+            {deleting ? <Loader2 className="spin" size={16} /> : <Trash2 size={16} />}
+            <span>{deleting ? "删除中" : "确认删除"}</span>
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

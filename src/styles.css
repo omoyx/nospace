@@ -770,6 +770,146 @@ p {
   color: #8b241d;
 }
 
+.delete-dialog-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(20, 20, 20, 0.3);
+  backdrop-filter: blur(10px);
+  animation: delete-backdrop-in 160ms ease-out both;
+}
+
+.delete-dialog {
+  position: relative;
+  display: grid;
+  width: min(100%, 420px);
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(23, 23, 23, 0.11);
+  border-radius: 8px;
+  background: rgba(252, 252, 252, 0.98);
+  box-shadow: 0 28px 72px rgba(20, 20, 20, 0.22);
+  animation: delete-dialog-in 180ms ease-out both;
+}
+
+.delete-dialog-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: #74787c;
+  cursor: pointer;
+}
+
+.delete-dialog-close:hover {
+  background: rgba(23, 23, 23, 0.06);
+  color: #171717;
+}
+
+.delete-dialog-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.delete-dialog-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(139, 36, 29, 0.09);
+  color: #8b241d;
+}
+
+.delete-dialog-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.delete-dialog-copy h2 {
+  padding-right: 34px;
+  font-size: 20px;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.delete-dialog-copy > p {
+  color: #6f7377;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.delete-dialog-file {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 12px;
+  border-left: 2px solid #8b241d;
+  background: rgba(23, 23, 23, 0.035);
+  color: #242424;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.delete-dialog-file > span:last-child {
+  overflow: hidden;
+  color: #9a9da0;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-dialog-copy .delete-dialog-error {
+  color: #8b241d;
+}
+
+.delete-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.delete-dialog-actions button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.delete-dialog-cancel {
+  background: #ededed;
+  color: #282828;
+}
+
+.delete-dialog-confirm {
+  background: #8b241d;
+  color: #ffffff;
+}
+
+.delete-dialog-actions button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.delete-dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .tile-error {
   margin-top: 8px;
   font-size: 12px;
@@ -817,6 +957,22 @@ p {
   to {
     opacity: 0;
     transform: scale(1.01);
+  }
+}
+
+@keyframes delete-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes delete-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -919,5 +1075,22 @@ p {
 
   .board-footer {
     flex-direction: column;
+  }
+
+  .delete-dialog-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .delete-dialog {
+    width: 100%;
+    padding: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delete-dialog-backdrop,
+  .delete-dialog {
+    animation: none;
   }
 }
