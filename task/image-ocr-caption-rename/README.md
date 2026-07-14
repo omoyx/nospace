@@ -44,3 +44,4 @@
 ## Mistakes
 
 - See `mistake/vision-rename-input-bounds.md`.
+- See `mistake/huggingface-upload-folder-ignored-artifacts.md`.
