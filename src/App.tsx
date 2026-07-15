@@ -828,7 +828,7 @@ function AssetCard({
               <span className="sr-only">删除资产</span>
             </button>
           )}
-          <a className="download-link" href={downloadUrl}>
+          <a className="download-link" href={downloadUrl} download={displayName}>
             <ArrowDownToLine size={15} />
             <span>Get</span>
           </a>

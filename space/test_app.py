@@ -267,5 +267,38 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
         smart_filename.assert_awaited_once_with("Quarterly_Report_FINAL_v3.txt", "text/plain", image_evidence)
 
 
+class AssetDownloadTests(unittest.TestCase):
+    def test_download_uses_display_name_without_modifying_source_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "stored-id.txt"
+            original_bytes = b"original file bytes\x00\xff"
+            source.write_bytes(original_bytes)
+            item = {
+                "id": "stored-id",
+                "originalName": "Quarterly_Report_FINAL_v3.txt",
+                "displayName": "季度报告 v3.txt",
+                "mimeType": "text/plain",
+            }
+
+            with patch.object(app, "file_item", return_value=(item, source)):
+                response = app.download_file("stored-id", "read-demo")
+
+            self.assertEqual(Path(response.path), source)
+            self.assertEqual(source.read_bytes(), original_bytes)
+            self.assertIn("attachment", response.headers["content-disposition"])
+            self.assertIn("%E5%AD%A3%E5%BA%A6%E6%8A%A5%E5%91%8A%20v3.txt", response.headers["content-disposition"])
+
+    def test_download_falls_back_to_original_name_for_legacy_asset(self):
+        item = {
+            "id": "legacy-id",
+            "originalName": "legacy-report.pdf",
+            "mimeType": "application/pdf",
+        }
+        with patch.object(app, "file_item", return_value=(item, Path("legacy-id.pdf"))):
+            response = app.download_file("legacy-id", "read-demo")
+
+        self.assertIn('filename="legacy-report.pdf"', response.headers["content-disposition"])
+
+
 if __name__ == "__main__":
     unittest.main()
