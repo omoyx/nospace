@@ -8,9 +8,10 @@ repository.
 
 ## Prevention
 
-- Keep a deployment-local `space/.gitignore` covering `storage/` and
-  `__pycache__/`.
+- A deployment-local `.gitignore` is insufficient: `HfApi.upload_folder` has
+  uploaded ignored files more than once in this project.
+- Call `upload_folder` with an explicit `allow_patterns` list containing only
+  the production files, or build explicit `CommitOperationAdd` operations.
 - Inspect `HfApi.list_repo_files(..., repo_type="space")` after every Space
   upload, not only the local Git status.
 - Delete unexpected remote artifacts before considering a deployment complete.
-

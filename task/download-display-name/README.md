@@ -27,3 +27,12 @@
 - Verified the public page loads the new `index--ozlxqME.js` bundle and that it contains the dynamic download filename property.
 - Superseded: the Space download endpoint must emit `originalName` through `Content-Disposition`; `displayName` is UI-only.
 - A real authenticated download was not performed because production invite values remain intentionally absent from the repository and local environment.
+
+## Original-name correction
+
+- Corrected the requirement after clarification: smart names are UI-only and downloads must use `originalName`.
+- Pushed correction commit `95c56b4` to `main`.
+- GitHub Pages workflow `29385156500` completed successfully.
+- Deployed the backend, removed accidentally included local artifacts, and verified clean Space SHA `5eb9946edcb4e6dd03fef8547b5fc68a590feb48` reached `RUNNING`.
+- Verified the public Space source returns `FileResponse(..., filename=item["originalName"])` and the public file list contains no `storage/` or `__pycache__/` paths.
+- Verified the public health endpoint remains healthy with GLM 5.2 and Tesseract/MobileNet image analysis enabled.
