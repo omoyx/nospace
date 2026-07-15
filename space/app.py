@@ -832,4 +832,4 @@ def read_file(item_id: str, invite: Annotated[str | None, Query()] = None) -> Fi
 @app.get("/files/{item_id}/download")
 def download_file(item_id: str, invite: Annotated[str | None, Query()] = None) -> FileResponse:
     item, path = file_item(item_id, invite)
-    return FileResponse(path, media_type=item["mimeType"], filename=item.get("displayName") or item["originalName"])
+    return FileResponse(path, media_type=item["mimeType"], filename=item["originalName"])
