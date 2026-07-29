@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="UTF-8" />
+<title>Invite cache fixture</title>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const invite = params.get("invite") || "";
+  const role = params.get("role") || "";
+  const boundInvite = params.get("boundInvite");
+
+  window.localStorage.clear();
+  if (invite) window.localStorage.setItem("nospace:invite", invite);
+  if (role) {
+    const session = {
+      role,
+      name: role === "upload" ? "Cached Uploader" : "Cached Reader",
+    };
+    if (boundInvite !== null) session.invite = boundInvite;
+    window.localStorage.setItem("nospace:session", JSON.stringify(session));
+  }
+  window.location.replace("/");
+</script>

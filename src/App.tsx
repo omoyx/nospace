@@ -31,19 +31,27 @@ type UploadPlaceholder = {
   error?: string;
 };
 
+type CachedSession = Session & {
+  invite: string;
+};
+
 function savedInvite(): string {
   if (typeof window === "undefined") return defaultInvite;
   return window.localStorage.getItem(inviteStorageKey) || defaultInvite;
 }
 
-function savedSession(): Session | null {
-  if (typeof window === "undefined" || !savedInvite()) return null;
+function savedSession(invite: string): Session | null {
+  if (typeof window === "undefined" || !invite) return null;
   const rawSession = window.localStorage.getItem(sessionStorageKey);
   if (!rawSession) return null;
 
   try {
-    const session = JSON.parse(rawSession) as Partial<Session>;
-    if ((session.role === "upload" || session.role === "download") && typeof session.name === "string") {
+    const session = JSON.parse(rawSession) as Partial<CachedSession>;
+    if (
+      session.invite === invite &&
+      (session.role === "upload" || session.role === "download") &&
+      typeof session.name === "string"
+    ) {
       return { role: session.role, name: session.name };
     }
   } catch {
@@ -258,10 +266,11 @@ function useAssetFeed(invite: string, hasSession: boolean) {
 
 export function App() {
   const [invite, setInvite] = useState(savedInvite);
-  const [session, setSession] = useState<Session | null>(savedSession);
-  const [authRestoring, setAuthRestoring] = useState(() => Boolean(savedInvite()) && !savedSession());
+  const [inviteDraft, setInviteDraft] = useState(savedInvite);
+  const [session, setSession] = useState<Session | null>(() => savedSession(savedInvite()));
+  const [authRestoring, setAuthRestoring] = useState(() => Boolean(savedInvite()) && !savedSession(savedInvite()));
   const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(() => Boolean(savedInvite()));
   const [query, setQuery] = useState("");
   const [note, setNote] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -292,11 +301,13 @@ export function App() {
       const nextSession = await verifyInvite(trimmedInvite);
       setSession(nextSession);
       setInvite(trimmedInvite);
+      setInviteDraft(trimmedInvite);
       window.localStorage.setItem(inviteStorageKey, trimmedInvite);
-      window.localStorage.setItem(sessionStorageKey, JSON.stringify(nextSession));
+      window.localStorage.setItem(sessionStorageKey, JSON.stringify({ ...nextSession, invite: trimmedInvite }));
       setAuthError("");
     } catch (error) {
       setSession(null);
+      setInvite("");
       window.localStorage.removeItem(inviteStorageKey);
       window.localStorage.removeItem(sessionStorageKey);
       if (!silent) {
@@ -327,7 +338,7 @@ export function App() {
     );
   }, [assets, query, session]);
 
-  const canUpload = session?.role === "upload";
+  const canUpload = session?.role === "upload" && !authLoading;
   const hasRealAssets = session && visibleAssets.length > 0;
   const hasVisibleContent = hasRealAssets || uploadItems.length > 0;
   const showDragOverlay = dragging || dragOverlayExiting;
@@ -367,11 +378,11 @@ export function App() {
 
   const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await signIn(invite);
+    await signIn(inviteDraft);
   };
 
   const handleUploadFiles = async (files: FileList | File[]) => {
-    if (!session || session.role !== "upload") return;
+    if (!canUpload) return;
 
     const queue = Array.from(files);
     if (queue.length === 0) return;
@@ -485,7 +496,7 @@ export function App() {
   };
 
   const handleTextUpload = async () => {
-    if (!session || session.role !== "upload" || !note.trim()) return;
+    if (!canUpload || !note.trim()) return;
     const file = new File([note.trim()], `nospace-note-${Date.now()}.txt`, {
       type: "text/plain",
     });
@@ -544,7 +555,7 @@ export function App() {
   };
 
   const handleDeleteAsset = async (asset: Asset) => {
-    if (!session || session.role !== "upload" || deletingId) return;
+    if (!canUpload || deletingId) return;
 
     setDeletingId(asset.id);
     setActionError("");
@@ -581,12 +592,13 @@ export function App() {
           <h1>NoSpace</h1>
           <div className="login-invite">
             <input
-              value={invite}
-              onChange={(event) => setInvite(event.target.value)}
+              value={inviteDraft}
+              onChange={(event) => setInviteDraft(event.target.value)}
               placeholder="邀请码"
               type="password"
               autoComplete="off"
               aria-label="邀请码"
+              disabled={authLoading}
             />
             <button type="submit" disabled={authLoading}>
               {authLoading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
@@ -612,11 +624,12 @@ export function App() {
           <label>
             <span>Invite</span>
             <input
-              value={invite}
-              onChange={(event) => setInvite(event.target.value)}
+              value={inviteDraft}
+              onChange={(event) => setInviteDraft(event.target.value)}
               placeholder="输入邀请码"
               type="password"
               autoComplete="off"
+              disabled={authLoading}
             />
           </label>
           <button type="submit" disabled={authLoading}>
@@ -646,7 +659,7 @@ export function App() {
         <div className="board-toolbar">
           <div className="session-pill">
             <ShieldCheck size={17} />
-            <span>{`${session.name} · ${session.role === "upload" ? "可上传" : "仅下载"}`}</span>
+            <span>{`${session.name} · ${authLoading ? "验证中" : session.role === "upload" ? "可上传" : "仅下载"}`}</span>
           </div>
 
           <div className="tool-cluster">
