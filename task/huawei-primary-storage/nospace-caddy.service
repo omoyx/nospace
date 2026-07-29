@@ -1,0 +1,28 @@
+[Unit]
+Description=NoSpace IP HTTPS
+After=network-online.target nospace-api.service
+Wants=network-online.target
+Requires=nospace-api.service
+RequiresMountsFor=/mnt/disk1
+
+[Service]
+Type=notify
+User=nospace
+Group=nospace
+Environment=XDG_DATA_HOME=/mnt/disk1/nospace-caddy/data
+Environment=XDG_CONFIG_HOME=/mnt/disk1/nospace-caddy/config
+ExecStart=/mnt/disk1/nospace-app/bin/caddy run --environ --config /mnt/disk1/nospace-app/current/Caddyfile
+TimeoutStopSec=10
+Restart=always
+RestartSec=3
+UMask=0027
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/mnt/disk1/nospace-caddy
+
+[Install]
+WantedBy=multi-user.target

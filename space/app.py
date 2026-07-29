@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -26,11 +27,16 @@ from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, In
 from huggingface_hub.errors import EntryNotFoundError, HfHubHTTPError, RepositoryNotFoundError
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel
+import requests
 from requests import RequestException
 
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "huggingface").strip().lower()
 DATASET_REPO_ID = os.getenv("DATASET_REPO_ID", "").strip()
 HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+LOCAL_STORAGE_DIR = Path(os.getenv("LOCAL_STORAGE_DIR", "/data/nospace")).expanduser()
+LOCAL_STORAGE_MIN_FREE_BYTES = int(os.getenv("LOCAL_STORAGE_MIN_FREE_GB", "0")) * 1024**3
+LOCAL_STORAGE_MAX_BYTES = int(os.getenv("LOCAL_STORAGE_MAX_GB", "0")) * 1024**3
 INDEX_PATH = "index.json"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
@@ -41,6 +47,12 @@ SMART_FILENAME_API_KEY = os.getenv("BAILIAN_OPENCODE_API_KEY", "").strip()
 SMART_FILENAME_MODEL = os.getenv("BAILIAN_OPENCODE_MODEL", "glm-5.2").strip() or "glm-5.2"
 SMART_FILENAME_TIMEOUT_SECONDS = int(os.getenv("SMART_FILENAME_TIMEOUT_SECONDS", "30"))
 SMART_FILENAME_MAX_TOKENS = int(os.getenv("SMART_FILENAME_MAX_TOKENS", "120"))
+SMART_FILENAME_UPSTREAM_URL = os.getenv("SMART_FILENAME_UPSTREAM_URL", "").strip()
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "").strip()
+AUTH_UPSTREAM_URL = os.getenv("AUTH_UPSTREAM_URL", "").rstrip("/")
+AUTH_UPSTREAM_TIMEOUT_SECONDS = int(os.getenv("AUTH_UPSTREAM_TIMEOUT_SECONDS", "12"))
+AUTH_CACHE_TTL_SECONDS = int(os.getenv("AUTH_CACHE_TTL_SECONDS", "600"))
+AUTH_CACHE_STALE_SECONDS = int(os.getenv("AUTH_CACHE_STALE_SECONDS", "86400"))
 IMAGE_ANALYSIS_MODEL = os.getenv("IMAGE_CLASSIFICATION_MODEL", "google/mobilenet_v2_1.0_224").strip()
 IMAGE_ANALYSIS_TIMEOUT_SECONDS = int(os.getenv("IMAGE_ANALYSIS_TIMEOUT_SECONDS", "45"))
 IMAGE_ANALYSIS_MAX_DIMENSION = int(os.getenv("IMAGE_ANALYSIS_MAX_DIMENSION", "1600"))
@@ -102,10 +114,18 @@ app.add_middleware(
 
 hf_api = HfApi(token=HF_TOKEN)
 index_update_lock = threading.Lock()
+auth_cache_lock = threading.Lock()
+auth_cache: dict[str, tuple[float, dict[str, str]]] = {}
 
 
 class InviteBody(BaseModel):
     invite: str
+
+
+class SmartFilenameBody(BaseModel):
+    originalName: str
+    mimeType: str
+    imageAnalysis: dict[str, str] | None = None
 
 
 def upload_too_large_error() -> dict[str, str]:
@@ -266,6 +286,30 @@ def call_glm_filename_rename(
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError("GLM filename rename returned an empty response")
     return content
+
+
+def call_upstream_filename_rename(
+    filename: str,
+    mime_type: str,
+    image_analysis: dict[str, str] | None = None,
+) -> tuple[str, str | None]:
+    response = requests.post(
+        SMART_FILENAME_UPSTREAM_URL,
+        json={
+            "originalName": filename,
+            "mimeType": mime_type,
+            "imageAnalysis": image_analysis,
+        },
+        headers={"x-internal-api-key": INTERNAL_API_KEY},
+        timeout=SMART_FILENAME_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    display_name = payload.get("displayName")
+    rename_model = payload.get("renameModel")
+    if not isinstance(display_name, str):
+        raise RuntimeError("Smart filename upstream returned no display name")
+    return display_name, rename_model if isinstance(rename_model, str) else None
 
 
 def parsed_json_object(content: str) -> dict | None:
@@ -503,6 +547,19 @@ async def smart_display_filename(
                     return sanitized, SMART_FILENAME_MODEL
         except Exception as error:
             logger.warning("Smart filename rename failed: %s", type(error).__name__)
+    elif SMART_FILENAME_UPSTREAM_URL and INTERNAL_API_KEY:
+        try:
+            display_name, rename_model = await asyncio.to_thread(
+                call_upstream_filename_rename,
+                filename,
+                mime_type,
+                image_analysis,
+            )
+            sanitized = sanitized_display_filename(display_name, filename)
+            if sanitized:
+                return sanitized, rename_model or SMART_FILENAME_MODEL
+        except Exception as error:
+            logger.warning("Smart filename upstream failed: %s", type(error).__name__)
 
     if is_garbled:
         repaired = deterministic_filename_repair(filename)
@@ -628,6 +685,49 @@ def storage_http_error(error: Exception) -> HTTPException:
     return HTTPException(status_code=503, detail="存储服务暂时不可用，请稍后重试")
 
 
+def using_local_storage() -> bool:
+    return STORAGE_BACKEND == "local"
+
+
+def safe_storage_path(path_in_repo: str) -> Path:
+    relative = Path(path_in_repo)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise HTTPException(status_code=500, detail="存储路径无效")
+    root = LOCAL_STORAGE_DIR.resolve()
+    candidate = (root / relative).resolve()
+    if candidate != root and root not in candidate.parents:
+        raise HTTPException(status_code=500, detail="存储路径无效")
+    return candidate
+
+
+def local_files_size() -> int:
+    files_dir = LOCAL_STORAGE_DIR / "files"
+    if not files_dir.exists():
+        return 0
+    return sum(path.stat().st_size for path in files_dir.rglob("*") if path.is_file())
+
+
+def ensure_local_storage(required_bytes: int = 0) -> None:
+    try:
+        LOCAL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        (LOCAL_STORAGE_DIR / "files").mkdir(exist_ok=True)
+        usage = shutil.disk_usage(LOCAL_STORAGE_DIR)
+    except OSError as error:
+        raise HTTPException(status_code=500, detail="本地存储目录不可用") from error
+
+    if LOCAL_STORAGE_MIN_FREE_BYTES and usage.free - required_bytes < LOCAL_STORAGE_MIN_FREE_BYTES:
+        raise HTTPException(status_code=507, detail="本地存储剩余空间不足")
+    if LOCAL_STORAGE_MAX_BYTES and local_files_size() + required_bytes > LOCAL_STORAGE_MAX_BYTES:
+        raise HTTPException(status_code=507, detail="本地存储已达到容量上限")
+
+
+def ensure_storage(required_bytes: int = 0) -> None:
+    if using_local_storage():
+        ensure_local_storage(required_bytes)
+    else:
+        ensure_dataset()
+
+
 def ensure_dataset() -> None:
     if not DATASET_REPO_ID:
         raise HTTPException(status_code=500, detail="DATASET_REPO_ID 未配置")
@@ -660,7 +760,51 @@ def upload_dataset_file(path_in_repo: str, source: Path | BytesIO, commit_messag
         raise storage_http_error(error) from error
 
 
+def upload_local_file(path_in_repo: str, source: Path | BytesIO) -> None:
+    ensure_local_storage()
+    destination = safe_storage_path(path_in_repo)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = tempfile.NamedTemporaryFile(
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        dir=destination.parent,
+        delete=False,
+    )
+    temporary_path = Path(temporary.name)
+    try:
+        with temporary:
+            if isinstance(source, BytesIO):
+                source.seek(0)
+                shutil.copyfileobj(source, temporary)
+            else:
+                with source.open("rb") as input_file:
+                    shutil.copyfileobj(input_file, temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, destination)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def upload_storage_file(path_in_repo: str, source: Path | BytesIO, commit_message: str) -> None:
+    if using_local_storage():
+        upload_local_file(path_in_repo, source)
+    else:
+        upload_dataset_file(path_in_repo, source, commit_message)
+
+
 def load_index() -> list[dict]:
+    if using_local_storage():
+        ensure_local_storage()
+        path = safe_storage_path(INDEX_PATH)
+        if not path.exists():
+            return []
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise HTTPException(status_code=500, detail="本地 index.json 无法解析") from error
+
     ensure_dataset()
     try:
         path = hf_hub_download(
@@ -678,9 +822,8 @@ def load_index() -> list[dict]:
 
 
 def save_index(items: list[dict]) -> None:
-    ensure_dataset()
     payload = json.dumps(items, ensure_ascii=False, indent=2).encode("utf-8")
-    upload_dataset_file(INDEX_PATH, BytesIO(payload), "Update NoSpace index")
+    upload_storage_file(INDEX_PATH, BytesIO(payload), "Update NoSpace index")
 
 
 def append_asset_item(item: dict) -> None:
@@ -760,24 +903,81 @@ def delete_asset_item(item_id: str, invite: str | None) -> dict[str, str]:
             raise HTTPException(status_code=404, detail="文件不存在")
 
         next_items = [item for item in items if item["id"] != item_id]
-        payload = json.dumps(next_items, ensure_ascii=False, indent=2).encode("utf-8")
-        ensure_dataset()
-        hf_api.create_commit(
-            repo_id=DATASET_REPO_ID,
-            repo_type="dataset",
-            operations=[
-                CommitOperationDelete(path_in_repo=file_path(item)),
-                CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
-            ],
-            commit_message=f"Delete {item.get('displayName') or item['originalName']}",
-        )
+        if using_local_storage():
+            path = safe_storage_path(file_path(item))
+            save_index(next_items)
+            path.unlink(missing_ok=True)
+        else:
+            payload = json.dumps(next_items, ensure_ascii=False, indent=2).encode("utf-8")
+            ensure_dataset()
+            hf_api.create_commit(
+                repo_id=DATASET_REPO_ID,
+                repo_type="dataset",
+                operations=[
+                    CommitOperationDelete(path_in_repo=file_path(item)),
+                    CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
+                ],
+                commit_message=f"Delete {item.get('displayName') or item['originalName']}",
+            )
     return {"ok": "true", "id": item_id}
 
 
-def session_for(invite: str | None) -> dict[str, str]:
-    if not invite or invite not in INVITES:
+def auth_cache_key(invite: str) -> str:
+    return hashlib.sha256(invite.encode("utf-8")).hexdigest()
+
+
+def upstream_session_for(invite: str) -> dict[str, str]:
+    key = auth_cache_key(invite)
+    now = time.monotonic()
+    with auth_cache_lock:
+        cached = auth_cache.get(key)
+    if cached and now - cached[0] <= AUTH_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    try:
+        response = requests.post(
+            f"{AUTH_UPSTREAM_URL}/api/session",
+            json={"invite": invite},
+            timeout=AUTH_UPSTREAM_TIMEOUT_SECONDS,
+        )
+    except RequestException as error:
+        if cached and now - cached[0] <= AUTH_CACHE_STALE_SECONDS:
+            logger.warning("Auth upstream unavailable; using stale cached authorization")
+            return cached[1]
+        raise HTTPException(status_code=503, detail="邀请码验证服务暂时不可用") from error
+
+    if response.status_code == 401:
+        with auth_cache_lock:
+            auth_cache.pop(key, None)
         raise HTTPException(status_code=401, detail="邀请码无效")
-    return INVITES[invite]
+    if response.status_code >= 400:
+        if cached and now - cached[0] <= AUTH_CACHE_STALE_SECONDS:
+            logger.warning("Auth upstream returned %s; using stale cached authorization", response.status_code)
+            return cached[1]
+        raise HTTPException(status_code=503, detail="邀请码验证服务暂时不可用")
+
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise HTTPException(status_code=503, detail="邀请码验证服务响应无效") from error
+    role = payload.get("role")
+    name = payload.get("name")
+    if role not in {"upload", "download"} or not isinstance(name, str):
+        raise HTTPException(status_code=503, detail="邀请码验证服务响应无效")
+    session = {"role": role, "name": name}
+    with auth_cache_lock:
+        auth_cache[key] = (now, session)
+    return session
+
+
+def session_for(invite: str | None) -> dict[str, str]:
+    if not invite:
+        raise HTTPException(status_code=401, detail="邀请码无效")
+    if invite in INVITES:
+        return INVITES[invite]
+    if AUTH_UPSTREAM_URL:
+        return upstream_session_for(invite)
+    raise HTTPException(status_code=401, detail="邀请码无效")
 
 
 def public_item(item: dict) -> dict:
@@ -794,11 +994,23 @@ def file_path(item: dict) -> str:
 
 @app.get("/")
 def health() -> dict[str, str]:
+    if using_local_storage():
+        storage = "local-filesystem"
+    elif DATASET_REPO_ID:
+        storage = "huggingface-dataset"
+    else:
+        storage = "unconfigured"
+    smart_filename = (
+        SMART_FILENAME_MODEL
+        if (SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY)
+        or (SMART_FILENAME_UPSTREAM_URL and INTERNAL_API_KEY)
+        else "disabled"
+    )
     return {
         "ok": "true",
         "service": "nospace-storage",
-        "storage": "huggingface-dataset" if DATASET_REPO_ID else "unconfigured",
-        "smartFilenameRename": SMART_FILENAME_MODEL if SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY else "disabled",
+        "storage": storage,
+        "smartFilenameRename": smart_filename,
         "imageAnalysis": f"async:tesseract+{IMAGE_ANALYSIS_MODEL}" if IMAGE_ANALYSIS_MODEL else "async:tesseract",
     }
 
@@ -806,6 +1018,24 @@ def health() -> dict[str, str]:
 @app.post("/api/session")
 def create_session(body: InviteBody, request: Request) -> dict[str, str]:
     return public_session(session_for(body.invite), request)
+
+
+@app.post("/internal/smart-filename")
+async def internal_smart_filename(
+    body: SmartFilenameBody,
+    x_internal_api_key: Annotated[str | None, Header()] = None,
+) -> dict[str, str | None]:
+    if not INTERNAL_API_KEY or not x_internal_api_key or not secrets.compare_digest(
+        x_internal_api_key,
+        INTERNAL_API_KEY,
+    ):
+        raise HTTPException(status_code=404, detail="Not found")
+    display_name, rename_model = await smart_display_filename(
+        safe_upload_name(body.originalName),
+        body.mimeType[:200],
+        body.imageAnalysis,
+    )
+    return {"displayName": display_name, "renameModel": rename_model}
 
 
 @app.get("/api/assets")
@@ -828,11 +1058,12 @@ async def create_asset(
     if session["role"] != "upload":
         raise HTTPException(status_code=403, detail="当前邀请码没有上传权限")
 
-    ensure_dataset()
+    ensure_storage()
     temp_path: Path | None = None
 
     try:
         temp_path, size, content_hash = await spool_upload_to_temp_file(file)
+        ensure_storage(size)
         original_name = safe_upload_name(file.filename)
         suffix = Path(original_name).suffix
         digest = hashlib.sha256(f"{content_hash}:{secrets.token_hex(8)}".encode("utf-8")).hexdigest()[:18]
@@ -842,7 +1073,7 @@ async def create_asset(
 
         mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
         display_name, rename_model = await smart_display_filename(original_name, mime_type)
-        upload_dataset_file(path_in_repo, temp_path, f"Upload {display_name}")
+        upload_storage_file(path_in_repo, temp_path, f"Upload {display_name}")
 
         item = {
             "id": item_id,
@@ -886,6 +1117,11 @@ def file_item(item_id: str, invite: str | None) -> tuple[dict, Path]:
     session_for(invite)
     for item in load_index():
         if item["id"] == item_id:
+            if using_local_storage():
+                path = safe_storage_path(file_path(item))
+                if not path.is_file():
+                    raise HTTPException(status_code=404, detail="文件不存在")
+                return item, path
             try:
                 path = hf_hub_download(
                     repo_id=DATASET_REPO_ID,

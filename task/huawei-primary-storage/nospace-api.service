@@ -1,0 +1,25 @@
+[Unit]
+Description=NoSpace Huawei API
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/disk1
+
+[Service]
+Type=simple
+User=nospace
+Group=nospace
+WorkingDirectory=/mnt/disk1/nospace-app/current
+EnvironmentFile=/mnt/disk1/nospace-app/shared/nospace.env
+ExecStart=/mnt/disk1/nospace-app/venv/bin/uvicorn app:app --host 127.0.0.1 --port 7860 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/mnt/disk1/nospace-storage
+
+[Install]
+WantedBy=multi-user.target

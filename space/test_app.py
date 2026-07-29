@@ -116,6 +116,32 @@ class SmartFilenameTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(filename, "季度报告 · PDF.pdf")
         self.assertEqual(model, "type-normalization")
 
+    async def test_filename_uses_metadata_only_upstream_when_local_key_is_unavailable(self):
+        with (
+            patch.object(app, "SMART_FILENAME_BASE_URL", ""),
+            patch.object(app, "SMART_FILENAME_API_KEY", ""),
+            patch.object(app, "SMART_FILENAME_UPSTREAM_URL", "https://example.test/internal/smart-filename"),
+            patch.object(app, "INTERNAL_API_KEY", "internal-key"),
+            patch.object(
+                app,
+                "call_upstream_filename_rename",
+                return_value=("香港数据列表截图.png", "glm-5.2"),
+            ) as upstream,
+        ):
+            filename, model = await app.smart_display_filename(
+                "Screenshot.png",
+                "image/png",
+                {"ocrText": "Hong Kong", "caption": "列表截图"},
+            )
+
+        self.assertEqual(filename, "香港数据列表截图.png")
+        self.assertEqual(model, "glm-5.2")
+        upstream.assert_called_once_with(
+            "Screenshot.png",
+            "image/png",
+            {"ocrText": "Hong Kong", "caption": "列表截图"},
+        )
+
 
 class ImageAnalysisTests(unittest.IsolatedAsyncioTestCase):
     def test_small_png_keeps_source_encoding(self):
@@ -225,6 +251,133 @@ class HuggingFaceRetryTests(unittest.TestCase):
             app.upload_dataset_file("index.json", BytesIO(b"[]"), "Update index")
 
         self.assertEqual(positions, [0, 0])
+
+
+class LocalStorageTests(unittest.TestCase):
+    def test_local_storage_writes_and_reads_files_and_index_atomically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            storage = Path(directory)
+            source = storage / "source.txt"
+            source.write_bytes(b"local-file")
+            with (
+                patch.object(app, "STORAGE_BACKEND", "local"),
+                patch.object(app, "LOCAL_STORAGE_DIR", storage),
+                patch.object(app, "LOCAL_STORAGE_MIN_FREE_BYTES", 0),
+                patch.object(app, "LOCAL_STORAGE_MAX_BYTES", 0),
+            ):
+                app.upload_storage_file("files/stored.txt", source, "Upload")
+                app.save_index([{"id": "stored", "filename": "stored.txt"}])
+                items = app.load_index()
+
+            self.assertEqual((storage / "files" / "stored.txt").read_bytes(), b"local-file")
+            self.assertEqual(items, [{"id": "stored", "filename": "stored.txt"}])
+            self.assertEqual(list(storage.rglob("*.tmp")), [])
+
+    def test_local_storage_rejects_parent_path_escape(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(app, "LOCAL_STORAGE_DIR", Path(directory)),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            app.safe_storage_path("../outside.txt")
+
+        self.assertEqual(raised.exception.status_code, 500)
+
+    def test_local_storage_enforces_configured_capacity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            storage = Path(directory)
+            files = storage / "files"
+            files.mkdir()
+            (files / "existing.bin").write_bytes(b"12345")
+            with (
+                patch.object(app, "LOCAL_STORAGE_DIR", storage),
+                patch.object(app, "LOCAL_STORAGE_MIN_FREE_BYTES", 0),
+                patch.object(app, "LOCAL_STORAGE_MAX_BYTES", 6),
+                self.assertRaises(HTTPException) as raised,
+            ):
+                app.ensure_local_storage(required_bytes=2)
+
+        self.assertEqual(raised.exception.status_code, 507)
+        self.assertEqual(raised.exception.detail, "本地存储已达到容量上限")
+
+    def test_local_file_lookup_uses_migrated_dataset_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            storage = Path(directory)
+            file_path = storage / "files" / "stored-id.txt"
+            file_path.parent.mkdir()
+            file_path.write_bytes(b"migrated")
+            item = {
+                "id": "stored-id",
+                "filename": "stored-id.txt",
+                "path": "files/stored-id.txt",
+                "originalName": "report.txt",
+                "mimeType": "text/plain",
+            }
+            with (
+                patch.object(app, "STORAGE_BACKEND", "local"),
+                patch.object(app, "LOCAL_STORAGE_DIR", storage),
+                patch.object(app, "LOCAL_STORAGE_MIN_FREE_BYTES", 0),
+                patch.object(app, "LOCAL_STORAGE_MAX_BYTES", 0),
+                patch.object(app, "session_for", return_value={"role": "download", "name": "Reader"}),
+                patch.object(app, "load_index", return_value=[item]),
+            ):
+                loaded_item, loaded_path = app.file_item("stored-id", "read-demo")
+
+        self.assertEqual(loaded_item, item)
+        self.assertEqual(loaded_path, file_path.resolve())
+
+
+class UpstreamAuthorizationTests(unittest.TestCase):
+    def setUp(self):
+        app.auth_cache.clear()
+
+    def tearDown(self):
+        app.auth_cache.clear()
+
+    def test_valid_invite_is_cached_without_storing_plaintext_key(self):
+        response = Mock(status_code=200)
+        response.json.return_value = {"role": "upload", "name": "upstream"}
+        with (
+            patch.object(app, "INVITES", {}),
+            patch.object(app, "AUTH_UPSTREAM_URL", "https://auth.example.test"),
+            patch.object(app, "AUTH_CACHE_TTL_SECONDS", 600),
+            patch.object(app.requests, "post", return_value=response) as post,
+        ):
+            first = app.session_for("private-upload-invite")
+            second = app.session_for("private-upload-invite")
+
+        self.assertEqual(first["role"], "upload")
+        self.assertEqual(second, first)
+        post.assert_called_once()
+        self.assertNotIn("private-upload-invite", app.auth_cache)
+        self.assertIn(app.auth_cache_key("private-upload-invite"), app.auth_cache)
+
+    def test_invalid_upstream_invite_remains_unauthorized(self):
+        response = Mock(status_code=401)
+        with (
+            patch.object(app, "INVITES", {}),
+            patch.object(app, "AUTH_UPSTREAM_URL", "https://auth.example.test"),
+            patch.object(app.requests, "post", return_value=response),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            app.session_for("invalid")
+
+        self.assertEqual(raised.exception.status_code, 401)
+
+    def test_recent_cached_authorization_survives_upstream_outage(self):
+        key = app.auth_cache_key("cached-invite")
+        app.auth_cache[key] = (app.time.monotonic(), {"role": "download", "name": "Office"})
+        with (
+            patch.object(app, "INVITES", {}),
+            patch.object(app, "AUTH_UPSTREAM_URL", "https://auth.example.test"),
+            patch.object(app, "AUTH_CACHE_TTL_SECONDS", 0),
+            patch.object(app, "AUTH_CACHE_STALE_SECONDS", 86400),
+            patch.object(app.requests, "post", side_effect=ConnectionError("offline")),
+        ):
+            session = app.session_for("cached-invite")
+
+        self.assertEqual(session, {"role": "download", "name": "Office"})
+
 
 class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
     async def test_created_asset_returns_before_background_image_analysis(self):
