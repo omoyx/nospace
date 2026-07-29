@@ -28,7 +28,13 @@
 
 ## Production
 
-Pending.
+- Committed the implementation as `b707255` and pushed `main` to GitHub.
+- Uploaded the backend to Hugging Face Space commit `06eac5364ba4f5f73f46c1296bc3b7f30282abf0`.
+- Verified the Space runtime reached `RUNNING` at that exact SHA and its public domain reached `READY`.
+- Verified `https://mannycooper-nospace-storage.hf.space/` returns `imageAnalysis: async:tesseract+google/mobilenet_v2_1.0_224`.
+- GitHub Pages workflow run `30418684027` completed successfully for `b707255`:
+  - `https://github.com/omoyx/nospace/actions/runs/30418684027`
+- A production upload was not performed because the current upload invite remains intentionally absent from the repository. Route tests prove classification is queued after the durable upload result rather than awaited by it.
 
 ## Recurrence
 
