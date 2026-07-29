@@ -9,6 +9,7 @@ import re
 import secrets
 import subprocess
 import tempfile
+import threading
 import time
 import unicodedata
 import urllib.error
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import Annotated, Callable, TypeVar
 from urllib.parse import unquote
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, InferenceClient, hf_hub_download
@@ -100,6 +101,7 @@ app.add_middleware(
 )
 
 hf_api = HfApi(token=HF_TOKEN)
+index_update_lock = threading.Lock()
 
 
 class InviteBody(BaseModel):
@@ -681,28 +683,94 @@ def save_index(items: list[dict]) -> None:
     upload_dataset_file(INDEX_PATH, BytesIO(payload), "Update NoSpace index")
 
 
+def append_asset_item(item: dict) -> None:
+    with index_update_lock:
+        items = load_index()
+        items.append(item)
+        save_index(items)
+
+
+def update_asset_display_name(
+    item_id: str,
+    display_name: str,
+    rename_model: str | None,
+    expected_display_name: str,
+) -> bool:
+    with index_update_lock:
+        items = load_index()
+        item = next((candidate for candidate in items if candidate["id"] == item_id), None)
+        if not item:
+            return False
+
+        current_display_name = item.get("displayName") or item["originalName"]
+        if current_display_name != expected_display_name or display_name == current_display_name:
+            return False
+
+        item["displayName"] = display_name
+        if rename_model:
+            item["renameModel"] = rename_model
+        else:
+            item.pop("renameModel", None)
+        save_index(items)
+        return True
+
+
+async def enrich_asset_image_name(
+    item_id: str,
+    path: Path,
+    original_name: str,
+    mime_type: str,
+    initial_display_name: str,
+) -> None:
+    try:
+        image_analysis = await analyze_image(path, mime_type)
+        if not image_analysis:
+            return
+
+        display_name, rename_model = await smart_display_filename(
+            original_name,
+            mime_type,
+            image_analysis,
+        )
+        if display_name == initial_display_name:
+            return
+
+        await asyncio.to_thread(
+            update_asset_display_name,
+            item_id,
+            display_name,
+            rename_model,
+            initial_display_name,
+        )
+    except Exception as error:
+        logger.warning("Background image filename enrichment failed: %s", type(error).__name__)
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def delete_asset_item(item_id: str, invite: str | None) -> dict[str, str]:
     session = session_for(invite)
     if session["role"] != "upload":
         raise HTTPException(status_code=403, detail="当前邀请码没有删除权限")
 
-    items = load_index()
-    item = next((item for item in items if item["id"] == item_id), None)
-    if not item:
-        raise HTTPException(status_code=404, detail="文件不存在")
+    with index_update_lock:
+        items = load_index()
+        item = next((item for item in items if item["id"] == item_id), None)
+        if not item:
+            raise HTTPException(status_code=404, detail="文件不存在")
 
-    next_items = [item for item in items if item["id"] != item_id]
-    payload = json.dumps(next_items, ensure_ascii=False, indent=2).encode("utf-8")
-    ensure_dataset()
-    hf_api.create_commit(
-        repo_id=DATASET_REPO_ID,
-        repo_type="dataset",
-        operations=[
-            CommitOperationDelete(path_in_repo=file_path(item)),
-            CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
-        ],
-        commit_message=f"Delete {item.get('displayName') or item['originalName']}",
-    )
+        next_items = [item for item in items if item["id"] != item_id]
+        payload = json.dumps(next_items, ensure_ascii=False, indent=2).encode("utf-8")
+        ensure_dataset()
+        hf_api.create_commit(
+            repo_id=DATASET_REPO_ID,
+            repo_type="dataset",
+            operations=[
+                CommitOperationDelete(path_in_repo=file_path(item)),
+                CommitOperationAdd(path_in_repo=INDEX_PATH, path_or_fileobj=BytesIO(payload)),
+            ],
+            commit_message=f"Delete {item.get('displayName') or item['originalName']}",
+        )
     return {"ok": "true", "id": item_id}
 
 
@@ -731,7 +799,7 @@ def health() -> dict[str, str]:
         "service": "nospace-storage",
         "storage": "huggingface-dataset" if DATASET_REPO_ID else "unconfigured",
         "smartFilenameRename": SMART_FILENAME_MODEL if SMART_FILENAME_BASE_URL and SMART_FILENAME_API_KEY else "disabled",
-        "imageAnalysis": f"tesseract+{IMAGE_ANALYSIS_MODEL}" if IMAGE_ANALYSIS_MODEL else "tesseract",
+        "imageAnalysis": f"async:tesseract+{IMAGE_ANALYSIS_MODEL}" if IMAGE_ANALYSIS_MODEL else "async:tesseract",
     }
 
 
@@ -751,6 +819,7 @@ def list_assets(x_invite_code: Annotated[str | None, Header()] = None) -> list[d
 @app.post("/api/assets")
 async def create_asset(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: Annotated[UploadFile, File()],
     note: Annotated[str, Form()] = "",
     x_invite_code: Annotated[str | None, Header()] = None,
@@ -772,8 +841,7 @@ async def create_asset(
         path_in_repo = f"files/{stored_name}"
 
         mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
-        image_analysis = await analyze_image(temp_path, mime_type)
-        display_name, rename_model = await smart_display_filename(original_name, mime_type, image_analysis)
+        display_name, rename_model = await smart_display_filename(original_name, mime_type)
         upload_dataset_file(path_in_repo, temp_path, f"Upload {display_name}")
 
         item = {
@@ -791,9 +859,17 @@ async def create_asset(
             item["displayName"] = display_name
             item["renameModel"] = rename_model
 
-        items = load_index()
-        items.append(item)
-        save_index(items)
+        append_asset_item(item)
+        if mime_type in IMAGE_ANALYSIS_MIME_TYPES:
+            background_tasks.add_task(
+                enrich_asset_image_name,
+                item_id,
+                temp_path,
+                original_name,
+                mime_type,
+                display_name,
+            )
+            temp_path = None
         return public_item(item)
     finally:
         if temp_path:

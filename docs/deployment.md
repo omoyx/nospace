@@ -47,7 +47,7 @@ BAILIAN_OPENCODE_API_KEY=<GLM credential>
 
 `BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer sends every uploaded filename, its MIME type, extension, local encoding-repair candidates, and optional OCR/caption text to GLM 5.2. File bytes and notes are not sent to GLM. If the model is unavailable, uploads continue: mojibake uses safe deterministic encoding repair when possible, and other names receive an objective MIME type suffix.
 
-Supported raster images are decoded locally and bounded to a 1600-pixel longest edge and approximately 3 MB. Tesseract performs Chinese/English OCR inside the Space. The bounded image is sent through the existing `HF_TOKEN` to `google/mobilenet_v2_1.0_224` on Hugging Face Inference for visual labels; no Qwen vision model is used. Labels, dimensions, and OCR form the caption passed to GLM as untrusted evidence. Notes and extracted evidence are never persisted in `index.json`.
+Supported raster images are processed after the upload response in a best-effort background task. They are decoded locally and bounded to a 1600-pixel longest edge and approximately 3 MB. Tesseract performs Chinese/English OCR inside the Space. The bounded image is sent through the existing `HF_TOKEN` to `google/mobilenet_v2_1.0_224` on Hugging Face Inference for visual labels; no Qwen vision model is used. Labels, dimensions, and OCR form the caption passed to GLM as untrusted evidence, and the refined display name is saved only if the initial name is still current. Classification or enrichment failure never fails the durable upload. Notes and extracted evidence are never persisted in `index.json`.
 
 The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
 

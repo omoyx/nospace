@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-from fastapi import HTTPException, UploadFile
+from fastapi import BackgroundTasks, HTTPException, UploadFile
 from requests import ConnectionError, Response
 from starlette.datastructures import Headers
 from starlette.requests import Request
@@ -227,7 +227,7 @@ class HuggingFaceRetryTests(unittest.TestCase):
         self.assertEqual(positions, [0, 0])
 
 class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_created_asset_keeps_original_and_smart_display_names(self):
+    async def test_created_asset_returns_before_background_image_analysis(self):
         request = Request(
             {
                 "type": "http",
@@ -238,14 +238,20 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
             }
         )
         upload = UploadFile(
-            file=BytesIO(b"smart filename rename test"),
-            filename="Quarterly_Report_FINAL_v3.txt",
-            headers=Headers({"content-type": "text/plain"}),
+            file=BytesIO(b"fake image bytes"),
+            filename="Screenshot.png",
+            headers=Headers({"content-type": "image/png"}),
         )
+        background_tasks = BackgroundTasks()
 
         image_evidence = {"ocrText": "Hong Kong 01", "caption": "香港条目列表"}
         analyze_image = AsyncMock(return_value=image_evidence)
-        smart_filename = AsyncMock(return_value=("季度报告 v3.txt", "glm-5.2"))
+        smart_filename = AsyncMock(
+            side_effect=[
+                ("截图 · 图片.png", "type-normalization"),
+                ("香港数据列表截图.png", "glm-5.2"),
+            ]
+        )
 
         with (
             patch.object(app, "ensure_dataset"),
@@ -254,17 +260,51 @@ class AssetCreationTests(unittest.IsolatedAsyncioTestCase):
             patch.object(app, "smart_display_filename", new=smart_filename),
             patch.object(app, "load_index", return_value=[]),
             patch.object(app, "save_index") as save_index,
+            patch.object(app, "update_asset_display_name", return_value=True) as update_display_name,
         ):
-            result = await app.create_asset(request, upload, "", "upload-demo")
+            result = await app.create_asset(request, background_tasks, upload, "", "upload-demo")
 
-        self.assertEqual(result["originalName"], "Quarterly_Report_FINAL_v3.txt")
-        self.assertEqual(result["displayName"], "季度报告 v3.txt")
-        self.assertEqual(result["renameModel"], "glm-5.2")
-        upload_file.assert_called_once()
-        save_index.assert_called_once()
-        self.assertEqual(save_index.call_args.args[0][0]["displayName"], "季度报告 v3.txt")
+            self.assertEqual(result["originalName"], "Screenshot.png")
+            self.assertEqual(result["displayName"], "截图 · 图片.png")
+            self.assertEqual(result["renameModel"], "type-normalization")
+            upload_file.assert_called_once()
+            save_index.assert_called_once()
+            self.assertEqual(save_index.call_args.args[0][0]["displayName"], "截图 · 图片.png")
+            analyze_image.assert_not_awaited()
+            smart_filename.assert_awaited_once_with("Screenshot.png", "image/png")
+            self.assertEqual(len(background_tasks.tasks), 1)
+
+            await background_tasks()
+
         analyze_image.assert_awaited_once()
-        smart_filename.assert_awaited_once_with("Quarterly_Report_FINAL_v3.txt", "text/plain", image_evidence)
+        self.assertEqual(smart_filename.await_count, 2)
+        smart_filename.assert_awaited_with("Screenshot.png", "image/png", image_evidence)
+        update_display_name.assert_called_once_with(
+            result["id"],
+            "香港数据列表截图.png",
+            "glm-5.2",
+            "截图 · 图片.png",
+        )
+
+    def test_background_display_name_update_does_not_overwrite_a_newer_name(self):
+        item = {
+            "id": "stored-id",
+            "originalName": "Screenshot.png",
+            "displayName": "用户更新后的名称.png",
+        }
+        with (
+            patch.object(app, "load_index", return_value=[item]),
+            patch.object(app, "save_index") as save_index,
+        ):
+            updated = app.update_asset_display_name(
+                "stored-id",
+                "后台视觉名称.png",
+                "glm-5.2",
+                "截图 · 图片.png",
+            )
+
+        self.assertFalse(updated)
+        save_index.assert_not_called()
 
 
 class AssetDownloadTests(unittest.TestCase):
