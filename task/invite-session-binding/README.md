@@ -35,7 +35,22 @@ edit from being combined with stale upload UI permissions.
 
 ## Production deployment
 
-Pending commit, GitHub Pages deployment, and public verification.
+- Committed the implementation as `621b47a Bind cached sessions to invite codes`
+  and pushed `main`.
+- GitHub Pages workflow
+  `https://github.com/omoyx/nospace/actions/runs/30418171657` completed
+  successfully for commit `621b47a`.
+- `https://omoyx.github.io/nospace/?verify=621b47a` returned `HTTP 200` and
+  loaded `assets/index-CNTiN-1z.js`.
+- The public JavaScript and the locally verified production build had the same
+  SHA-256:
+  `340724a49fb14b6693ea47424ed857bb15d6d26748b8a3a069dc14707a5df50c`.
+- A real browser loaded the public login form with the expected `NoSpace`
+  heading, invite field, and enter button.
+- The production session endpoint returned `HTTP 200`, the current upload
+  invite still resolved to the `upload` role, and the response allowed the
+  `https://omoyx.github.io` origin.
+- No production file was created during verification.
 
 ## Recurrence
 
