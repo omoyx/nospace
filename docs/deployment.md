@@ -1,25 +1,49 @@
 # NoSpace deployment
 
-## First online version
+## Current production
 
 - Frontend: GitHub Pages.
-- Backend/API: Hugging Face Docker Space.
-- Storage: private Hugging Face Dataset.
-- Data: files under `files/` plus `index.json` in the Dataset repo.
+- Backend/API: the Shanghai Huawei ECS at a trusted bare-IP HTTPS endpoint.
+- Primary storage: the ECS's existing `/mnt/disk1/nospace-storage` filesystem.
+- Control plane: the Hugging Face Docker Space validates existing invites and performs GLM filename generation.
+- Rollback snapshot: the private Hugging Face Dataset contains the data present at cutover, but is not a continuous mirror of later Huawei uploads.
 
 Live URLs:
 
 ```text
 Frontend: https://omoyx.github.io/nospace/
-Backend:  https://mannycooper-nospace-storage.hf.space
-Dataset:  mannycooper/nospace-data
+Backend:  https://113.44.66.120
+Control:  https://mannycooper-nospace-storage.hf.space
+Snapshot: mannycooper/nospace-data
 ```
 
-This keeps the project simple: no database, no user accounts, no server-side render path.
+Upload, inline-read, and download bytes travel directly between the browser and the Huawei ECS. They do not pass through Hugging Face. The Huawei API sends only invite-validation JSON and filename/MIME/OCR metadata to the control plane; it does not send file bytes or notes.
+
+## Huawei ECS
+
+The two systemd services are:
+
+```text
+nospace-api.service
+nospace-caddy.service
+```
+
+Caddy obtains and renews a Let's Encrypt `shortlived` certificate directly for `113.44.66.120`. `default_sni` is required because some bare-IP TLS clients omit SNI.
+
+The application uses only the server's existing data disk:
+
+```text
+Application: /mnt/disk1/nospace-app
+Files:       /mnt/disk1/nospace-storage/files
+Index:       /mnt/disk1/nospace-storage/index.json
+Caddy data:  /mnt/disk1/nospace-caddy
+```
+
+Uploads are refused with HTTP 507 if NoSpace would exceed 40 GiB or if the data disk would fall below 150 GiB free. No additional EVS disk is required.
 
 ## Hugging Face Space
 
-Create a Docker Space from `space/`.
+The existing Space remains online as the authorization and smart-filename control plane. It also preserves the old Dataset-backed implementation as a rollback path.
 
 Set Space variables:
 
@@ -43,20 +67,21 @@ Set Space secrets:
 ```text
 HF_TOKEN=<token with write access to the private Dataset repo>
 BAILIAN_OPENCODE_API_KEY=<GLM credential>
+INTERNAL_API_KEY=<shared random control-plane credential>
 ```
 
-`BAILIAN_OPENCODE_API_KEY` must remain a Space secret. The filename renamer sends every uploaded filename, its MIME type, extension, local encoding-repair candidates, and optional OCR/caption text to GLM 5.2. File bytes and notes are not sent to GLM. If the model is unavailable, uploads continue: mojibake uses safe deterministic encoding repair when possible, and other names receive an objective MIME type suffix.
+`BAILIAN_OPENCODE_API_KEY` and `INTERNAL_API_KEY` must remain secrets. Huawei calls the protected `/internal/smart-filename` endpoint with filename, MIME type, and optional local OCR evidence. File bytes and notes are never sent. If the model is unavailable, uploads continue with a safe deterministic fallback name.
 
-Supported raster images are processed after the upload response in a best-effort background task. They are decoded locally and bounded to a 1600-pixel longest edge and approximately 3 MB. Tesseract performs Chinese/English OCR inside the Space. The bounded image is sent through the existing `HF_TOKEN` to `google/mobilenet_v2_1.0_224` on Hugging Face Inference for visual labels; no Qwen vision model is used. Labels, dimensions, and OCR form the caption passed to GLM as untrusted evidence, and the refined display name is saved only if the initial name is still current. Classification or enrichment failure never fails the durable upload. Notes and extracted evidence are never persisted in `index.json`.
+Supported raster images are durably stored before a best-effort background task runs local Chinese/English Tesseract on Huawei. OCR or naming failure never fails or blocks the durable upload response. The production Huawei path does not send image bytes to Hugging Face Inference.
 
-The Dataset repo should be private so visitors cannot bypass the invite API and read files directly from the Hub.
+The Dataset repo remains private so visitors cannot bypass the invite API and read the rollback snapshot directly from the Hub.
 
 ## GitHub Pages
 
 Build with:
 
 ```text
-VITE_API_BASE_URL=https://mannycooper-nospace-storage.hf.space
+VITE_API_BASE_URL=https://113.44.66.120
 VITE_DEFAULT_INVITE=
 VITE_MAX_UPLOAD_MB=200
 ```
@@ -65,11 +90,11 @@ Then publish `dist/` through GitHub Pages.
 
 The current GitHub Actions workflow publishes on pushes to `main`.
 
-Keep frontend `VITE_MAX_UPLOAD_MB` aligned with the Space `MAX_UPLOAD_MB` variable. The frontend uses it to reject oversized files before upload, while the backend remains the final enforcement point.
+Keep frontend `VITE_MAX_UPLOAD_MB` aligned with the Huawei API's `MAX_UPLOAD_MB`. The frontend uses it to reject oversized files before upload, while the backend remains the final enforcement point.
 
 ## Network note
 
-Mainland access can change. Test with the actual corporate network before relying on the site. If GitHub Pages or Hugging Face is blocked by that network, the frontend can stay unchanged while the backend moves to a small VPS, Cloudflare Worker + R2, or any FastAPI host with a writable disk.
+The Shanghai data path avoids routing file bytes through Hugging Face. GitHub Pages still serves the static frontend, and invite/name control requests still depend on the HF Space. The API's public IP certificate is short-lived and Caddy must remain running so renewal happens automatically.
 
 ## Local settings
 

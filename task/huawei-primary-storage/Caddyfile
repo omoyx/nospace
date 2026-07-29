@@ -4,6 +4,13 @@
 }
 
 https://113.44.66.120 {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			profile shortlived
+		}
+	}
+
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:7860
 	header {
