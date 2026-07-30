@@ -7,8 +7,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile
+from fastapi.testclient import TestClient
 from requests import ConnectionError, Response
-from starlette.datastructures import Headers
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.requests import Request
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -377,6 +378,107 @@ class UpstreamAuthorizationTests(unittest.TestCase):
             session = app.session_for("cached-invite")
 
         self.assertEqual(session, {"role": "download", "name": "Office"})
+
+
+class CompatibilityProxyTests(unittest.TestCase):
+    def test_only_public_storage_routes_can_be_proxied(self):
+        self.assertEqual(app.compatibility_path("api/session"), "/api/session")
+        self.assertEqual(app.compatibility_path("/api/assets/item-1"), "/api/assets/item-1")
+        self.assertEqual(app.compatibility_path("files/item-1/download"), "/files/item-1/download")
+
+        for path in ("", "internal/smart-filename", "docs", "api/assets/item-1/extra"):
+            with self.subTest(path=path), self.assertRaises(HTTPException) as raised:
+                app.compatibility_path(path)
+            self.assertEqual(raised.exception.status_code, 404)
+
+    def test_proxy_headers_keep_required_metadata_without_forwarding_host(self):
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/compat/api/assets",
+            "headers": [],
+            "client": ("203.0.113.9", 1234),
+        }
+        request = Request(scope)
+        headers = MutableHeaders(scope=request.scope)
+        headers["host"] = "proxy.example.test"
+        headers["content-type"] = "multipart/form-data; boundary=test"
+        headers["content-length"] = "123"
+        headers["x-invite-code"] = "private"
+        headers["x-forwarded-for"] = "198.51.100.8"
+        headers["connection"] = "keep-alive"
+
+        forwarded = app.compatibility_request_headers(request)
+
+        self.assertNotIn("host", forwarded)
+        self.assertNotIn("connection", forwarded)
+        self.assertEqual(forwarded["content-length"], "123")
+        self.assertEqual(forwarded["x-invite-code"], "private")
+        self.assertEqual(forwarded["x-forwarded-for"], "198.51.100.8")
+        self.assertEqual(forwarded["accept-encoding"], "identity")
+
+    def test_proxy_response_headers_preserve_download_metadata(self):
+        response = app.httpx.Response(
+            200,
+            headers={
+                "content-type": "application/pdf",
+                "content-disposition": 'attachment; filename="report.pdf"',
+                "content-length": "42",
+                "server": "upstream",
+                "connection": "close",
+            },
+        )
+
+        forwarded = app.compatibility_response_headers(response)
+
+        self.assertEqual(forwarded["content-type"], "application/pdf")
+        self.assertEqual(forwarded["content-length"], "42")
+        self.assertIn("report.pdf", forwarded["content-disposition"])
+        self.assertNotIn("server", forwarded)
+        self.assertNotIn("connection", forwarded)
+
+    def test_proxy_streams_query_body_and_invite_header_to_upstream(self):
+        captured: dict[str, object] = {}
+        original_async_client = app.httpx.AsyncClient
+
+        class ProxyResponseStream(app.httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b'{"ok":"true"}'
+
+        async def upstream(request: app.httpx.Request) -> app.httpx.Response:
+            captured["method"] = request.method
+            captured["url"] = str(request.url)
+            captured["invite"] = request.headers.get("x-invite-code")
+            captured["body"] = await request.aread()
+            return app.httpx.Response(
+                200,
+                headers={"content-type": "application/json"},
+                stream=ProxyResponseStream(),
+            )
+
+        def proxy_client(**_kwargs):
+            return original_async_client(transport=app.httpx.MockTransport(upstream))
+
+        with (
+            patch.object(app, "COMPAT_UPSTREAM_URL", "https://storage.example.test"),
+            patch.object(app.httpx, "AsyncClient", side_effect=proxy_client),
+            TestClient(app.app) as client,
+        ):
+            response = client.post(
+                "/compat/api/session?source=intranet",
+                headers={"X-Invite-Code": "private"},
+                json={"invite": "private"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": "true"})
+        self.assertEqual(captured["method"], "POST")
+        self.assertEqual(
+            captured["url"],
+            "https://storage.example.test/api/session?source=intranet",
+        )
+        self.assertEqual(captured["invite"], "private")
+        self.assertEqual(json.loads(captured["body"]), {"invite": "private"})
 
 
 class AssetCreationTests(unittest.IsolatedAsyncioTestCase):

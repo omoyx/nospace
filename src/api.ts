@@ -1,12 +1,16 @@
 import type { Asset, Session } from "./types";
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+const configuredFallbackUrl = import.meta.env.VITE_API_FALLBACK_URL?.replace(/\/$/, "");
 const configuredMaxUploadMb = Number(import.meta.env.VITE_MAX_UPLOAD_MB ?? 200);
 
 export const apiBaseUrl =
   configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl : import.meta.env.DEV ? "http://127.0.0.1:7860" : "";
+export const apiFallbackUrl =
+  configuredFallbackUrl && configuredFallbackUrl !== apiBaseUrl ? configuredFallbackUrl : "";
 export const maxUploadMb = Number.isFinite(configuredMaxUploadMb) && configuredMaxUploadMb > 0 ? configuredMaxUploadMb : 200;
 export const maxUploadBytes = maxUploadMb * 1024 * 1024;
+let activeApiBaseUrl = apiBaseUrl;
 
 type ApiErrorBody = {
   detail?: string;
@@ -33,8 +37,8 @@ function parseJsonBody(text: string): unknown {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, init);
+async function requestFrom<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, init);
 
   if (!response.ok) {
     let body: ApiErrorBody = {};
@@ -50,17 +54,46 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: { allowNetworkFallback?: boolean; preferPrimary?: boolean } = {},
+): Promise<T> {
+  const baseUrl = options.preferPrimary ? apiBaseUrl : activeApiBaseUrl;
+  try {
+    const result = await requestFrom<T>(baseUrl, path, init);
+    activeApiBaseUrl = baseUrl;
+    return result;
+  } catch (error) {
+    const canFallback =
+      options.allowNetworkFallback &&
+      error instanceof TypeError &&
+      baseUrl === apiBaseUrl &&
+      apiFallbackUrl.length > 0;
+    if (!canFallback) throw error;
+
+    const result = await requestFrom<T>(apiFallbackUrl, path, init);
+    activeApiBaseUrl = apiFallbackUrl;
+    return result;
+  }
+}
+
 export async function verifyInvite(invite: string): Promise<Session> {
   return request<Session>("/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ invite }),
+  }, {
+    allowNetworkFallback: true,
+    preferPrimary: true,
   });
 }
 
 export async function listAssets(invite: string): Promise<Asset[]> {
   return request<Asset[]>("/api/assets", {
     headers: { "X-Invite-Code": invite },
+  }, {
+    allowNetworkFallback: true,
   });
 }
 
@@ -76,7 +109,7 @@ export async function uploadAsset(
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${apiBaseUrl}/api/assets`);
+    xhr.open("POST", `${activeApiBaseUrl}/api/assets`);
     xhr.setRequestHeader("X-Invite-Code", invite);
 
     onProgress?.(8);
@@ -114,10 +147,10 @@ export async function deleteAsset(invite: string, assetId: string): Promise<void
 
 export function assetDownloadUrl(asset: Asset, invite: string): string {
   const separator = asset.downloadUrl.includes("?") ? "&" : "?";
-  return `${apiBaseUrl}${asset.downloadUrl}${separator}invite=${encodeURIComponent(invite)}`;
+  return `${activeApiBaseUrl}${asset.downloadUrl}${separator}invite=${encodeURIComponent(invite)}`;
 }
 
 export function assetFileUrl(asset: Asset, invite: string): string {
   const separator = asset.url.includes("?") ? "&" : "?";
-  return `${apiBaseUrl}${asset.url}${separator}invite=${encodeURIComponent(invite)}`;
+  return `${activeApiBaseUrl}${asset.url}${separator}invite=${encodeURIComponent(invite)}`;
 }

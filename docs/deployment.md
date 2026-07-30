@@ -4,6 +4,7 @@
 
 - Frontend: GitHub Pages.
 - Backend/API: the Shanghai Huawei ECS at a trusted bare-IP HTTPS endpoint.
+- Compatibility API: the Hugging Face Space `/compat` path streams requests to the Huawei ECS for enterprise networks that reject the IP certificate.
 - Primary storage: the ECS's existing `/mnt/disk1/nospace-storage` filesystem.
 - Control plane: the Hugging Face Docker Space validates existing invites and performs GLM filename generation.
 - Rollback snapshot: the private Hugging Face Dataset contains the data present at cutover, but is not a continuous mirror of later Huawei uploads.
@@ -14,10 +15,13 @@ Live URLs:
 Frontend: https://omoyx.github.io/nospace/
 Backend:  https://113.44.66.120
 Control:  https://mannycooper-nospace-storage.hf.space
+Compat:   https://mannycooper-nospace-storage.hf.space/compat
 Snapshot: mannycooper/nospace-data
 ```
 
 Upload, inline-read, and download bytes travel directly between the browser and the Huawei ECS. They do not pass through Hugging Face. The Huawei API sends only invite-validation JSON and filename/MIME/OCR metadata to the control plane; it does not send file bytes or notes.
+
+If the browser cannot establish TLS to the bare IP, invite verification falls back to the Space `/compat` path. Only that compatibility session's bytes pass through Hugging Face; normal sessions continue to use the Shanghai direct path.
 
 ## Huawei ECS
 
@@ -51,6 +55,7 @@ Set Space variables:
 INVITES=upload-code:upload:Uploader,read-code:download:Office
 ALLOWED_ORIGINS=https://omoyx.github.io,http://127.0.0.1:5173
 APP_BASE_URL=https://mannycooper-nospace-storage.hf.space
+COMPAT_UPSTREAM_URL=https://113.44.66.120
 DATASET_REPO_ID=mannycooper/nospace-data
 MAX_UPLOAD_MB=200
 BAILIAN_OPENCODE_BASE_URL=<OpenAI-compatible GLM endpoint>
@@ -82,6 +87,7 @@ Build with:
 
 ```text
 VITE_API_BASE_URL=https://113.44.66.120
+VITE_API_FALLBACK_URL=https://mannycooper-nospace-storage.hf.space/compat
 VITE_DEFAULT_INVITE=
 VITE_MAX_UPLOAD_MB=200
 ```
@@ -94,7 +100,7 @@ Keep frontend `VITE_MAX_UPLOAD_MB` aligned with the Huawei API's `MAX_UPLOAD_MB`
 
 ## Network note
 
-The Shanghai data path avoids routing file bytes through Hugging Face. GitHub Pages still serves the static frontend, and invite/name control requests still depend on the HF Space. The API's public IP certificate is short-lived and Caddy must remain running so renewal happens automatically.
+The normal Shanghai data path avoids routing file bytes through Hugging Face. GitHub Pages still serves the static frontend, and invite/name control requests still depend on the HF Space. Company networks that reject the short-lived IP certificate use the streaming compatibility path. Caddy must remain running so the IP certificate renews automatically.
 
 ## Local settings
 
@@ -102,6 +108,7 @@ Create `.env.local` for local development:
 
 ```text
 VITE_API_BASE_URL=http://127.0.0.1:7860
+VITE_API_FALLBACK_URL=
 VITE_DEFAULT_INVITE=upload-demo
 VITE_MAX_UPLOAD_MB=200
 ```

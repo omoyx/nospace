@@ -28,6 +28,7 @@ jobs:
         env:
           GITHUB_PAGES: "true"
           VITE_API_BASE_URL: https://113.44.66.120
+          VITE_API_FALLBACK_URL: https://mannycooper-nospace-storage.hf.space/compat
           VITE_DEFAULT_INVITE: ""
           VITE_MAX_UPLOAD_MB: "200"
       - uses: actions/upload-pages-artifact@v3

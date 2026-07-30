@@ -20,15 +20,17 @@ from pathlib import Path
 from typing import Annotated, Callable, TypeVar
 from urllib.parse import unquote
 
+import httpx
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from huggingface_hub import CommitOperationAdd, CommitOperationDelete, HfApi, InferenceClient, hf_hub_download
 from huggingface_hub.errors import EntryNotFoundError, HfHubHTTPError, RepositoryNotFoundError
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel
 import requests
 from requests import RequestException
+from starlette.background import BackgroundTask
 
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "huggingface").strip().lower()
@@ -53,6 +55,7 @@ AUTH_UPSTREAM_URL = os.getenv("AUTH_UPSTREAM_URL", "").rstrip("/")
 AUTH_UPSTREAM_TIMEOUT_SECONDS = int(os.getenv("AUTH_UPSTREAM_TIMEOUT_SECONDS", "12"))
 AUTH_CACHE_TTL_SECONDS = int(os.getenv("AUTH_CACHE_TTL_SECONDS", "600"))
 AUTH_CACHE_STALE_SECONDS = int(os.getenv("AUTH_CACHE_STALE_SECONDS", "86400"))
+COMPAT_UPSTREAM_URL = os.getenv("COMPAT_UPSTREAM_URL", "").rstrip("/")
 IMAGE_ANALYSIS_MODEL = os.getenv("IMAGE_CLASSIFICATION_MODEL", "google/mobilenet_v2_1.0_224").strip()
 IMAGE_ANALYSIS_TIMEOUT_SECONDS = int(os.getenv("IMAGE_ANALYSIS_TIMEOUT_SECONDS", "45"))
 IMAGE_ANALYSIS_MAX_DIMENSION = int(os.getenv("IMAGE_ANALYSIS_MAX_DIMENSION", "1600"))
@@ -573,7 +576,7 @@ async def smart_display_filename(
 
 @app.middleware("http")
 async def reject_oversized_upload_request(request: Request, call_next):
-    if request.method == "POST" and request.url.path == "/api/assets":
+    if request.method == "POST" and request.url.path in {"/api/assets", "/compat/api/assets"}:
         content_length = request.headers.get("content-length")
         if content_length:
             try:
@@ -988,6 +991,60 @@ def public_item(item: dict) -> dict:
     }
 
 
+def compatibility_path(path: str) -> str:
+    normalized = "/" + path.lstrip("/")
+    if re.fullmatch(r"/api/session", normalized):
+        return normalized
+    if re.fullmatch(r"/api/assets(?:/[^/]+)?", normalized):
+        return normalized
+    if re.fullmatch(r"/files/[^/]+(?:/download)?", normalized):
+        return normalized
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+def compatibility_request_headers(request: Request) -> dict[str, str]:
+    forwarded_headers = {
+        "accept",
+        "content-length",
+        "content-type",
+        "origin",
+        "range",
+        "user-agent",
+        "x-invite-code",
+    }
+    headers = {
+        name: value
+        for name, value in request.headers.items()
+        if name.lower() in forwarded_headers
+    }
+    for source_ip_header in ("cf-connecting-ip", "x-real-ip", "x-forwarded-for"):
+        value = request.headers.get(source_ip_header)
+        if value:
+            headers["x-forwarded-for"] = value
+            break
+    headers["accept-encoding"] = "identity"
+    return headers
+
+
+def compatibility_response_headers(response: httpx.Response) -> dict[str, str]:
+    forwarded_headers = {
+        "accept-ranges",
+        "cache-control",
+        "content-disposition",
+        "content-encoding",
+        "content-length",
+        "content-range",
+        "content-type",
+        "etag",
+        "last-modified",
+    }
+    return {
+        name: value
+        for name, value in response.headers.items()
+        if name.lower() in forwarded_headers
+    }
+
+
 def file_path(item: dict) -> str:
     return item.get("path") or f"files/{item['filename']}"
 
@@ -1013,6 +1070,52 @@ def health() -> dict[str, str]:
         "smartFilenameRename": smart_filename,
         "imageAnalysis": f"async:tesseract+{IMAGE_ANALYSIS_MODEL}" if IMAGE_ANALYSIS_MODEL else "async:tesseract",
     }
+
+
+@app.api_route(
+    "/compat/{path:path}",
+    methods=["GET", "POST", "DELETE", "OPTIONS"],
+)
+async def compatibility_proxy(request: Request, path: str) -> StreamingResponse:
+    if not COMPAT_UPSTREAM_URL:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    upstream_path = compatibility_path(path)
+    client = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=12, read=None, write=None, pool=12),
+        follow_redirects=False,
+    )
+    request_kwargs: dict = {
+        "headers": compatibility_request_headers(request),
+    }
+    if request.method in {"POST", "PUT", "PATCH"}:
+        request_kwargs["content"] = request.stream()
+
+    try:
+        upstream_url = f"{COMPAT_UPSTREAM_URL}{upstream_path}"
+        if request.url.query:
+            upstream_url = f"{upstream_url}?{request.url.query}"
+        upstream_request = client.build_request(
+            request.method,
+            upstream_url,
+            **request_kwargs,
+        )
+        upstream_response = await client.send(upstream_request, stream=True)
+    except httpx.RequestError as error:
+        await client.aclose()
+        logger.warning("Compatibility upstream unavailable: %s", type(error).__name__)
+        raise HTTPException(status_code=503, detail="兼容访问通道暂时不可用") from error
+
+    async def close_upstream() -> None:
+        await upstream_response.aclose()
+        await client.aclose()
+
+    return StreamingResponse(
+        upstream_response.aiter_raw(),
+        status_code=upstream_response.status_code,
+        headers=compatibility_response_headers(upstream_response),
+        background=BackgroundTask(close_upstream),
+    )
 
 
 @app.post("/api/session")
