@@ -39,11 +39,26 @@ The valid IP certificate has an empty Subject, an IP SAN, an ECDSA leaf, and the
 - `docker build -t nospace-storage-intranet-compat:test space` passed.
 - The built container proxied a deliberately invalid invite to the public Huawei endpoint and preserved its `401 邀请码无效` response.
 - The built container returned a successful GitHub Pages CORS preflight for the compatibility upload path.
+- The standalone Playwright CLI wrapper could not resolve its `playwright-cli` executable. The in-app Chromium browser completed the real-browser fallback check instead.
+- A browser build with the primary API deliberately set to unreachable `https://127.0.0.1:1` still received and displayed `邀请码无效` from the public compatibility endpoint after login submission.
+- Browser error/warning logs were empty after the fallback request.
 - `git diff --check` passed.
 
 ## Production
 
-Pending deployment and public verification.
+- Local implementation commit: `6b7bd6f` (`Add intranet TLS compatibility fallback`).
+- Hugging Face Space commit: `36788863a485d2d7a08f5f08d2c277b16d3f6c77`.
+- Set Space variable `COMPAT_UPSTREAM_URL=https://113.44.66.120`.
+- Verified the Space runtime reached `RUNNING` at the exact target SHA and `mannycooper-nospace-storage.hf.space` reached `READY`.
+- Verified `POST https://mannycooper-nospace-storage.hf.space/compat/api/session` forwarded a deliberately invalid invite and returned Huawei's `401 邀请码无效`.
+- Verified the public compatibility upload preflight allows `https://omoyx.github.io`, `POST`, and `x-invite-code`.
+- Verified `/compat/internal/smart-filename` returns `404`, so internal control-plane routes are not exposed.
+- Pushed `main` and verified GitHub Pages workflow `30547410348` completed successfully:
+  - <https://github.com/omoyx/nospace/actions/runs/30547410348>
+- Verified <https://omoyx.github.io/nospace/?release=6b7bd6f> returns HTTP 200 with a `last-modified` timestamp after the deployment.
+- Verified the public page loads `/nospace/assets/index-DFUHBqXR.js`.
+- Verified that public bundle contains both `https://113.44.66.120` and `https://mannycooper-nospace-storage.hf.space/compat`.
+- No production upload or valid-invite listing was performed because invite values remain intentionally absent from the repository.
 
 ## Recurrence
 
